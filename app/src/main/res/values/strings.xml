@@ -1,0 +1,96 @@
+<resources>
+    <string name="app_name">Ouro</string>
+
+    <!-- Navigation -->
+    <string name="tab_photos">Photos</string>
+    <string name="tab_albums">Albums</string>
+
+    <!-- Photos Timeline -->
+    <string name="photos_title">Photos</string>
+    <string name="select_photos">Select Photos</string>
+    <string name="select_all">Select All</string>
+    <string name="deselect">Deselect</string>
+    <string name="clear_selection">Clear Selection</string>
+    <string name="add_to_event">Add to Event</string>
+    <string name="favorite">Favorite</string>
+    <string name="untagged_only">Untagged Only</string>
+    <string name="favorites_only">Favorites Only</string>
+    <string name="import_via_photo_picker">Import via Photo Picker</string>
+    <string name="no_photos_found">No Photos Found</string>
+    <string name="no_photos_subtitle">Photos taken on this device or saved in storage will appear here chronologically.</string>
+    <string name="no_favorites_yet">No Favorite Photos Yet</string>
+    <string name="no_favorites_subtitle">Tap the heart icon when viewing any photo to save it to your favorites.</string>
+    <string name="all_photos_tagged">All Photos Are Tagged</string>
+    <string name="all_photos_tagged_subtitle">All photos in your library have been organized into events.</string>
+    <string name="unable_to_load_photos">Unable to Load Photos</string>
+    <string name="retry">Retry</string>
+    <string name="refresh">Refresh</string>
+    <string name="import_photos">Import</string>
+    <string name="view_all_photos">View All Photos</string>
+
+    <!-- Albums / Home -->
+    <string name="albums_title">Albums</string>
+    <string name="no_albums_yet">No Albums Yet</string>
+    <string name="no_albums_subtitle">Create categories like Vacations, Family, or Projects to organize your memories into dated events.</string>
+    <string name="create_first_album">Create First Album</string>
+    <string name="create_album">Create Album</string>
+    <string name="edit_album">Edit Album</string>
+    <string name="delete_album">Delete Album</string>
+
+    <!-- Detail Screen -->
+    <string name="no_events_yet">No Events in this Album Yet</string>
+    <string name="no_events_subtitle">Create an event to group photos by date, location, and memories.</string>
+    <string name="create_event">Create Event</string>
+    <string name="create_first_event">Create First Event</string>
+    <string name="clear_filters">Clear Filters</string>
+    <string name="filter_places">Places</string>
+    <string name="filter_people">People</string>
+
+    <!-- Event Detail -->
+    <string name="no_event_photos_yet">No Photos in this Event</string>
+    <string name="no_event_photos_subtitle">Tap below to import photos from your device gallery.</string>
+    <string name="add_photos">Add Photos</string>
+    <string name="delete_event">Delete Event</string>
+
+    <!-- Permissions -->
+    <string name="permission_required_title">Photo Access Required</string>
+    <string name="permission_required_message">Ouro needs permission to read device photos for your timeline.</string>
+    <string name="grant_permission">Grant Permission</string>
+    <string name="limited_access_title">Limited Photo Access</string>
+    <string name="limited_access_message">Only selected photos are visible.</string>
+    <string name="select_more_photos">Select More</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="section_appearance">Appearance</string>
+    <string name="theme_system">System Default</string>
+    <string name="theme_dark">Dark Mode</string>
+    <string name="theme_light">Light Mode</string>
+    <string name="section_photos">Photo Access</string>
+    <string name="section_storage">Storage &amp; Cache</string>
+    <string name="clear_cache">Clear Image Cache</string>
+    <string name="remove_missing_photos">Remove Missing Photos</string>
+    <string name="section_backup">Backup &amp; Restore</string>
+    <string name="export_backup">Export Backup</string>
+    <string name="restore_backup">Restore Backup</string>
+    <string name="backup_description">Export or restore albums, categories, dated events, and photo tag assignments as a portable JSON file.</string>
+    <string name="section_web_viewer">Web Viewer</string>
+    <string name="section_about">About</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_save">Save</string>
+    <string name="dialog_create">Create</string>
+    <string name="dialog_delete">Delete</string>
+    <string name="dialog_confirm">Confirm</string>
+
+    <!-- Accessibility Descriptions -->
+    <string name="cd_close">Close</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_more_options">More options</string>
+    <string name="cd_favorite">Favorite</string>
+    <string name="cd_remove_favorite">Remove from favorites</string>
+    <string name="cd_delete">Delete</string>
+    <string name="cd_toggle_grid">Toggle grid columns</string>
+    <string name="cd_back">Navigate back</string>
+</resources>

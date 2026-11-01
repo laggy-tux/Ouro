@@ -1,0 +1,50 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Stylized Red Panda Ears -->
+    <path
+        android:fillColor="#FF7A00"
+        android:pathData="M32,32 L46,38 L38,48 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M35,35 L43,39 L39,45 Z" />
+
+    <path
+        android:fillColor="#FF7A00"
+        android:pathData="M76,32 L70,48 L62,38 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M73,35 L69,45 L65,39 Z" />
+
+    <!-- Camera Body / Outer Lens Frame -->
+    <path
+        android:fillColor="#171A24"
+        android:pathData="M32,42 C32,38 35,36 39,36 L69,36 C73,36 76,38 76,42 L76,72 C76,76 73,79 69,79 L39,79 C35,79 32,76 32,72 Z" />
+
+    <!-- Camera Top Bar / Flash Dot -->
+    <path
+        android:fillColor="#FF7A00"
+        android:pathData="M66,42m-3,0a3,3 0,1,1 6,0a3,3 0,1,1 -6,0" />
+
+    <!-- Camera Aperture Outer Circle -->
+    <path
+        android:fillColor="#090B10"
+        android:pathData="M54,58m-17,0a17,17 0,1,1 34,0a17,17 0,1,1 -34,0" />
+
+    <!-- Inner Lens Ring -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,58m-13,0a13,13 0,1,1 26,0a13,13 0,1,1 -26,0" />
+
+    <!-- Lens Center Pupil / Aperture Core -->
+    <path
+        android:fillColor="#FF7A00"
+        android:pathData="M54,58m-8,0a8,8 0,1,1 16,0a8,8 0,1,1 -16,0" />
+
+    <!-- Lens Glint Highlight -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M51,54m-2.5,0a2.5,2.5 0,1,1 5,0a2.5,2.5 0,1,1 -5,0" />
+</vector>
