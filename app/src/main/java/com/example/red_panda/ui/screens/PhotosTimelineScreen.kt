@@ -52,6 +52,8 @@ import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.data.local.PhotoAccessState
 import com.example.red_panda.data.paging.TimelineItem
 import com.example.red_panda.ui.components.AddToEventDialog
+import com.example.red_panda.ui.components.SuggestedEventDialog
+import com.example.red_panda.ui.model.SuggestedEvent
 import com.example.red_panda.ui.theme.HeartRed
 import com.example.red_panda.ui.theme.glassCard
 import com.example.red_panda.ui.viewmodel.PhotoFilter
@@ -83,6 +85,7 @@ fun PhotosTimelineScreen(
     var selectedPhotoIndex by rememberSaveable { mutableIntStateOf(-1) }
     var showAddToEventDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var suggestedEventToCreate by remember { mutableStateOf<SuggestedEvent?>(null) }
 
     // Predictive back gestures
     BackHandler(enabled = selectedPhotoIndex >= 0) {
@@ -93,6 +96,9 @@ fun PhotosTimelineScreen(
     }
     BackHandler(enabled = selectedPhotoIndex < 0 && !viewModel.isSelectionMode && viewModel.activeFilter != PhotoFilter.ALL) {
         viewModel.setFilter(PhotoFilter.ALL)
+    }
+    BackHandler(enabled = suggestedEventToCreate != null) {
+        suggestedEventToCreate = null
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -174,8 +180,31 @@ fun PhotosTimelineScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
+    suggestedEventToCreate?.let { suggested ->
+        SuggestedEventDialog(
+            suggested = suggested,
+            albums = albums,
+            onDismiss = { suggestedEventToCreate = null },
+            onConfirm = { title, categoryId, albumName, newAlbumTitle ->
+                viewModel.createEventFromSuggestedCard(
+                    suggested = suggested,
+                    categoryId = categoryId,
+                    title = title,
+                    newCategoryTitle = newAlbumTitle
+                ) {
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("Event '$title' created in '$albumName'!")
+                    }
+                }
+                suggestedEventToCreate = null
+            }
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            topBar = {
             TopAppBar(
                 title = {
                     if (viewModel.isSelectionMode) {
@@ -572,11 +601,7 @@ fun PhotosTimelineScreen(
                             Spacer(modifier = Modifier.height(12.dp))
                             Button(
                                 onClick = {
-                                    viewModel.createEventFromSuggestedCard(firstSuggested) {
-                                        coroutineScope.launch {
-                                            snackbarHostState.showSnackbar("Created event for ${firstSuggested.dateString}!")
-                                        }
-                                    }
+                                    suggestedEventToCreate = firstSuggested
                                 },
                                 shape = RoundedCornerShape(20.dp),
                                 modifier = Modifier.align(Alignment.End)
@@ -740,9 +765,11 @@ fun PhotosTimelineScreen(
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(viewModel.columnCount),
                         state = gridState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = 72.dp)
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            top = innerPadding.calculateTopPadding(),
+                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 90.dp
+                        )
                     ) {
                         items(
                             count = timelineItems.itemCount,
@@ -916,37 +943,39 @@ fun PhotosTimelineScreen(
                 }
             }
 
-            // Full-Screen Viewer Overlay
-            if (selectedPhotoIndex >= 0) {
-                val photoUris = remember(loadedTimelineItems) {
-                    loadedTimelineItems
-                        .filterIsInstance<TimelineItem.Photo>()
-                        .map { it.photo.contentUri }
-                }
-
-                val photoIndex = remember(selectedPhotoIndex, loadedTimelineItems) {
-                    loadedTimelineItems
-                        .take(selectedPhotoIndex)
-                        .count { it is TimelineItem.Photo }
-                        .coerceIn(0, (photoUris.size - 1).coerceAtLeast(0))
-                }
-
-                if (photoUris.isNotEmpty()) {
-                    FullScreenPhotoViewer(
-                        photoUris = photoUris,
-                        initialIndex = photoIndex,
-                        favoriteUris = favoriteUris,
-                        onDismiss = { selectedPhotoIndex = -1 },
-                        onToggleFavorite = { page ->
-                            val uri = photoUris.getOrNull(page)
-                            if (uri != null) {
-                                viewModel.togglePhotoFavorite(uri)
-                            }
-                        }
-                    )
-                }
-            }
         }
+    }
+
+    // Draw above the Scaffold so the full-screen viewer also covers the Photos app bar.
+    if (selectedPhotoIndex >= 0) {
+        val photoUris = remember(loadedTimelineItems) {
+            loadedTimelineItems
+                .filterIsInstance<TimelineItem.Photo>()
+                .map { it.photo.contentUri }
+        }
+
+        val photoIndex = remember(selectedPhotoIndex, loadedTimelineItems) {
+            loadedTimelineItems
+                .take(selectedPhotoIndex)
+                .count { it is TimelineItem.Photo }
+                .coerceIn(0, (photoUris.size - 1).coerceAtLeast(0))
+        }
+
+        if (photoUris.isNotEmpty()) {
+            FullScreenPhotoViewer(
+                photoUris = photoUris,
+                initialIndex = photoIndex,
+                favoriteUris = favoriteUris,
+                onDismiss = { selectedPhotoIndex = -1 },
+                onToggleFavorite = { page ->
+                    val uri = photoUris.getOrNull(page)
+                    if (uri != null) {
+                        viewModel.togglePhotoFavorite(uri)
+                    }
+                }
+            )
+        }
+    }
     }
 }
 

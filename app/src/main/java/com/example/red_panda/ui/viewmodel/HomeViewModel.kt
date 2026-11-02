@@ -5,12 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.example.red_panda.data.repository.GalleryRepository
 import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.SuggestedEvent
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class HomeViewModel(
     private val repository: GalleryRepository
@@ -38,11 +40,23 @@ class HomeViewModel(
         categoryId: Long,
         title: String,
         date: String,
-        photoUris: List<String>
+        photoUris: List<String>,
+        newCategoryTitle: String? = null,
+        onComplete: (() -> Unit)? = null
     ) {
-        viewModelScope.launch {
-            repository.createEventFromSuggested(categoryId, title, date, photoUris)
+        viewModelScope.launch(Dispatchers.IO) {
+            val targetCatId = if (newCategoryTitle != null) {
+                repository.createCategory(newCategoryTitle, "Recently", 0xFF35354A)
+            } else {
+                categoryId
+            }
+            repository.createEventFromSuggested(targetCatId, title, date, photoUris)
             loadSuggestedEvents(context)
+            if (onComplete != null) {
+                withContext(Dispatchers.Main) {
+                    onComplete()
+                }
+            }
         }
     }
 

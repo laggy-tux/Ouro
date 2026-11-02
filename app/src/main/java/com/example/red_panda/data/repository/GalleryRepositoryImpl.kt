@@ -12,7 +12,6 @@ import com.example.red_panda.data.local.entity.PhotoRefEntity
 import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.EventMock
 import com.example.red_panda.ui.model.SuggestedEvent
-import com.example.red_panda.ui.model.mockAlbums
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -540,18 +539,14 @@ class GalleryRepositoryImpl(
         val targetCategoryId = if (categoryId > 0) {
             categoryId
         } else {
-            val allCategories = categoryDao.getCategoryCount()
-            if (allCategories > 0) {
-                1L
-            } else {
-                categoryDao.insertCategory(
-                    CategoryEntity(
-                        name = "Suggested Events",
-                        section = "Recently",
-                        coverColor = 0xFF35354A
-                    )
+            val firstCategory = categoryDao.getAllCategoriesSync().firstOrNull()
+            firstCategory?.id ?: categoryDao.insertCategory(
+                CategoryEntity(
+                    name = "My Events",
+                    section = "Recently",
+                    coverColor = 0xFF35354A
                 )
-            }
+            )
         }
 
         val newEventId = eventDao.insertEvent(
@@ -559,7 +554,7 @@ class GalleryRepositoryImpl(
                 categoryId = targetCategoryId,
                 title = title,
                 date = date,
-                location = "Local Photos"
+                location = ""
             )
         )
 
@@ -603,34 +598,4 @@ class GalleryRepositoryImpl(
         }
         removedCount
     }
-
-    override suspend fun seedInitialDataIfEmpty() =
-        withContext(Dispatchers.IO) {
-            if (categoryDao.getCategoryCount() == 0) {
-                mockAlbums.forEach { mockAlbum ->
-                    val categoryId = categoryDao.insertCategory(
-                        CategoryEntity(
-                            name = mockAlbum.title,
-                            section = mockAlbum.section,
-                            coverColor = mockAlbum.coverColor,
-                            isFavorite = mockAlbum.isFavorite
-                        )
-                    )
-
-                    mockAlbum.events.forEach { mockEvent ->
-                        eventDao.insertEvent(
-                            EventEntity(
-                                categoryId = categoryId,
-                                title = mockEvent.title,
-                                date = mockEvent.date,
-                                location = mockEvent.location,
-                                placeTag = mockEvent.placeTag,
-                                personTag = mockEvent.personTag
-                            )
-                        )
-                    }
-                }
-            }
-        }
-
 }

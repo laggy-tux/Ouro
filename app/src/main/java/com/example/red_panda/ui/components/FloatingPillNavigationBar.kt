@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -53,9 +53,9 @@ fun FloatingPillNavigationBar(
 
     Box(
         modifier = modifier
-            .fillMaxWidth()
+            .wrapContentSize(Alignment.BottomCenter, unbounded = true)
             .navigationBarsPadding()
-            .padding(bottom = 16.dp, start = 24.dp, end = 24.dp),
+            .padding(bottom = 20.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
         // Frosted Glass Floating Capsule Container matching iOS 26 glass theme

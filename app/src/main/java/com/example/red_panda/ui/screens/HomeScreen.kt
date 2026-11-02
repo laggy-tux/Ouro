@@ -58,11 +58,13 @@ import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.data.local.PhotoAccessState
 import com.example.red_panda.ui.components.CategoryDialog
 import com.example.red_panda.ui.components.ConfirmDeleteDialog
+import com.example.red_panda.ui.components.SuggestedEventDialog
 import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.SuggestedEvent
 import com.example.red_panda.ui.theme.HeartRed
 import com.example.red_panda.ui.theme.glassCard
 import com.example.red_panda.ui.viewmodel.HomeViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -119,17 +121,22 @@ fun HomeScreen(
         }
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
     var isGridTwoColumn by remember { mutableStateOf(true) }
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var albumToEdit by remember { mutableStateOf<Album?>(null) }
     var albumToDelete by remember { mutableStateOf<Album?>(null) }
+    var suggestedEventToCreate by remember { mutableStateOf<SuggestedEvent?>(null) }
 
     // Predictive back gestures for open dialogs
-    BackHandler(enabled = showCreateDialog || albumToEdit != null || albumToDelete != null) {
+    BackHandler(enabled = showCreateDialog || albumToEdit != null || albumToDelete != null || suggestedEventToCreate != null) {
         showCreateDialog = false
         albumToEdit = null
         albumToDelete = null
+        suggestedEventToCreate = null
     }
 
     if (showCreateDialog) {
@@ -169,8 +176,38 @@ fun HomeScreen(
         )
     }
 
+    suggestedEventToCreate?.let { suggested ->
+        SuggestedEventDialog(
+            suggested = suggested,
+            albums = albums,
+            onDismiss = { suggestedEventToCreate = null },
+            onConfirm = { title, categoryId, albumName, newAlbumTitle ->
+                viewModel.createEventFromSuggested(
+                    context = context,
+                    categoryId = categoryId,
+                    title = title,
+                    date = suggested.dateString,
+                    photoUris = suggested.photoUris,
+                    newCategoryTitle = newAlbumTitle
+                ) {
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("Event '$title' created in '$albumName'!")
+                    }
+                }
+                suggestedEventToCreate = null
+            }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = {
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = 112.dp)
+            )
+        },
         topBar = {
             TopAppBar(
                 title = {
@@ -224,8 +261,11 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(32.dp),
+                    .padding(
+                        top = innerPadding.calculateTopPadding(),
+                        bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 90.dp
+                    )
+                    .padding(horizontal = 32.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -274,11 +314,13 @@ fun HomeScreen(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 72.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = innerPadding.calculateTopPadding() + 8.dp,
+                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 90.dp
+                ),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -375,14 +417,7 @@ fun HomeScreen(
                         SuggestedEventsSection(
                             suggestedEvents = suggestedEvents,
                             onCreateSuggestedEvent = { suggested ->
-                                val firstAlbumId = albums.firstOrNull()?.id?.toLongOrNull() ?: 1L
-                                viewModel.createEventFromSuggested(
-                                    context = context,
-                                    categoryId = firstAlbumId,
-                                    title = "Event on ${suggested.dateString}",
-                                    date = suggested.dateString,
-                                    photoUris = suggested.photoUris
-                                )
+                                suggestedEventToCreate = suggested
                             }
                         )
                     }

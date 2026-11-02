@@ -1,5 +1,6 @@
 package com.example.red_panda.ui.components
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -87,7 +88,7 @@ fun EventDialog(
                     }
                     showDatePicker = false
                 }) {
-                    Text("Select", color = MaterialTheme.colorScheme.secondary)
+                    Text("Select", color = MaterialTheme.colorScheme.onSurface)
                 }
             },
             dismissButton = {
@@ -108,7 +109,12 @@ fun EventDialog(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
                 .widthIn(max = 480.dp)
-                .heightIn(max = dialogMaxHeight),
+                .heightIn(max = dialogMaxHeight)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    shape = RoundedCornerShape(28.dp)
+                ),
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,

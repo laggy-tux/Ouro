@@ -63,6 +63,4 @@ interface GalleryRepository {
     ): Long
 
     suspend fun cleanupMissingPhotos(context: android.content.Context): Int
-
-    suspend fun seedInitialDataIfEmpty()
 }

@@ -9,8 +9,8 @@ import androidx.compose.runtime.Composable
 
 @Composable
 internal fun popupButtonColors() = ButtonDefaults.buttonColors(
-    containerColor = MaterialTheme.colorScheme.secondary,
-    contentColor = MaterialTheme.colorScheme.onSecondary,
+    containerColor = MaterialTheme.colorScheme.primary,
+    contentColor = MaterialTheme.colorScheme.onPrimary,
     disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
     disabledContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
 )
@@ -19,11 +19,11 @@ internal fun popupButtonColors() = ButtonDefaults.buttonColors(
 internal fun popupTextFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = MaterialTheme.colorScheme.onSurface,
     unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-    focusedLabelColor = MaterialTheme.colorScheme.secondary,
+    focusedLabelColor = MaterialTheme.colorScheme.onSurface,
     unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-    focusedBorderColor = MaterialTheme.colorScheme.secondary,
+    focusedBorderColor = MaterialTheme.colorScheme.onSurface,
     unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-    cursorColor = MaterialTheme.colorScheme.secondary,
+    cursorColor = MaterialTheme.colorScheme.onSurface,
     focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
     unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant
 )
@@ -32,8 +32,17 @@ internal fun popupTextFieldColors() = OutlinedTextFieldDefaults.colors(
 @Composable
 internal fun popupDatePickerColors() = DatePickerDefaults.colors(
     containerColor = MaterialTheme.colorScheme.surface,
-    selectedDayContainerColor = MaterialTheme.colorScheme.secondary,
-    selectedDayContentColor = MaterialTheme.colorScheme.onSecondary,
-    todayContentColor = MaterialTheme.colorScheme.secondary,
-    todayDateBorderColor = MaterialTheme.colorScheme.secondary
+    titleContentColor = MaterialTheme.colorScheme.onSurface,
+    headlineContentColor = MaterialTheme.colorScheme.onSurface,
+    weekdayContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    subheadContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    yearContentColor = MaterialTheme.colorScheme.onSurface,
+    currentYearContentColor = MaterialTheme.colorScheme.onSurface,
+    selectedYearContainerColor = MaterialTheme.colorScheme.primary,
+    selectedYearContentColor = MaterialTheme.colorScheme.onPrimary,
+    dayContentColor = MaterialTheme.colorScheme.onSurface,
+    selectedDayContainerColor = MaterialTheme.colorScheme.primary,
+    selectedDayContentColor = MaterialTheme.colorScheme.onPrimary,
+    todayContentColor = MaterialTheme.colorScheme.onSurface,
+    todayDateBorderColor = MaterialTheme.colorScheme.onSurface
 )

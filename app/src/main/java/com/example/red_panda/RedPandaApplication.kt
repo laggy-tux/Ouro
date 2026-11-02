@@ -3,9 +3,6 @@ package com.example.red_panda
 import android.app.Application
 import com.example.red_panda.data.local.AppDatabase
 import com.example.red_panda.data.repository.GalleryRepositoryImpl
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 class RedPandaApplication : Application() {
     lateinit var repository: GalleryRepositoryImpl
@@ -20,9 +17,5 @@ class RedPandaApplication : Application() {
             eventDao = database.eventDao(),
             photoDao = database.photoDao()
         )
-
-        CoroutineScope(Dispatchers.IO).launch {
-            repository.seedInitialDataIfEmpty()
-        }
     }
 }

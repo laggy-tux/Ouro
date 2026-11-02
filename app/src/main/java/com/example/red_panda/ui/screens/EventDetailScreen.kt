@@ -122,200 +122,202 @@ fun EventDetailScreen(
         return
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = event.title,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        if (event.date.isNotBlank() || event.location.isNotBlank()) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
                             Text(
-                                text = listOf(event.date, event.location).filter { it.isNotBlank() }.joinToString(" • "),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = event.title,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onBackground
                             )
+                            if (event.date.isNotBlank() || event.location.isNotBlank()) {
+                                Text(
+                                    text = listOf(event.date, event.location).filter { it.isNotBlank() }.joinToString(" • "),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                },
-                actions = {
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBackClick) {
                             Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "Options",
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
                                 tint = MaterialTheme.colorScheme.onBackground
                             )
                         }
+                    },
+                    actions = {
+                        Box {
+                            IconButton(onClick = { showMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Options",
+                                    tint = MaterialTheme.colorScheme.onBackground
+                                )
+                            }
 
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            tonalElevation = 0.dp
+                            DropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false },
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 0.dp
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Add Photos") },
+                                    leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        photoPickerLauncher.launch(
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        )
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete Event", color = MaterialTheme.colorScheme.error) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                    onClick = {
+                                        showMenu = false
+                                        showDeleteDialog = true
+                                    }
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = {
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Photos")
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.background
+        ) { innerPadding ->
+            BackHandler(enabled = showViewer) {
+                showViewer = false
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                val photos = event.photoUris
+                if (photos.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("Add Photos") },
-                                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AddPhotoAlternate,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "No Photos Yet",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Tap below to import photos from your device gallery.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                            Button(
                                 onClick = {
-                                    showMenu = false
                                     photoPickerLauncher.launch(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                     )
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Delete Event", color = MaterialTheme.colorScheme.error) },
-                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                                onClick = {
-                                    showMenu = false
-                                    showDeleteDialog = true
-                                }
-                            )
+                                },
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Add Photos")
+                            }
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    photoPickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Photos")
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(6.dp)
+                    ) {
+                        itemsIndexed(photos) { index, photoUri ->
+                            Box(
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .padding(3.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(Color(0xFF2C2C30))
+                                    .clickable {
+                                        selectedPhotoIndex = index
+                                        showViewer = true
+                                    }
+                            ) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(photoUri)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Photo ${index + 1}",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+                    }
+                }
             }
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
-        BackHandler(enabled = showViewer) {
-            showViewer = false
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            val photos = event.photoUris
-            if (photos.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AddPhotoAlternate,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No Photos Yet",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Tap below to import photos from your device gallery.",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(20.dp))
-                        Button(
-                            onClick = {
-                                photoPickerLauncher.launch(
-                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                )
-                            },
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Add Photos")
-                        }
+        if (showViewer && event.photoUris.isNotEmpty()) {
+            FullScreenPhotoViewer(
+                photoUris = event.photoUris,
+                initialIndex = selectedPhotoIndex,
+                onDismiss = { showViewer = false },
+                onRemovePhoto = { page ->
+                    if (page in event.photoRefs.indices) {
+                        viewModel.removePhoto(event.photoRefs[page].id)
                     }
                 }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(6.dp)
-                ) {
-                    itemsIndexed(photos) { index, photoUri ->
-                        Box(
-                            modifier = Modifier
-                                .aspectRatio(1f)
-                                .padding(3.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color(0xFF2C2C30))
-                                .clickable {
-                                    selectedPhotoIndex = index
-                                    showViewer = true
-                                }
-                        ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(photoUri)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = "Photo ${index + 1}",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-                }
-            }
-
-            if (showViewer && photos.isNotEmpty()) {
-                FullScreenPhotoViewer(
-                    photoUris = photos,
-                    initialIndex = selectedPhotoIndex,
-                    onDismiss = { showViewer = false },
-                    onRemovePhoto = { page ->
-                        if (page in event.photoRefs.indices) {
-                            viewModel.removePhoto(event.photoRefs[page].id)
-                        }
-                    }
-                )
-            }
+            )
         }
     }
 }

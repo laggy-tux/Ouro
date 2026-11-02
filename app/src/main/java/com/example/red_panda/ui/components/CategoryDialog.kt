@@ -71,7 +71,12 @@ fun CategoryDialog(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
                 .widthIn(max = 480.dp)
-                .heightIn(max = dialogMaxHeight),
+                .heightIn(max = dialogMaxHeight)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    shape = RoundedCornerShape(28.dp)
+                ),
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -121,8 +126,16 @@ fun CategoryDialog(
                                 onClick = { selectedSection = section },
                                 label = { Text(section) },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                    selectedContainerColor = MaterialTheme.colorScheme.onSurface,
+                                    selectedLabelColor = MaterialTheme.colorScheme.surface,
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = selectedSection == section,
+                                    borderColor = MaterialTheme.colorScheme.outline,
+                                    selectedBorderColor = MaterialTheme.colorScheme.onSurface
                                 )
                             )
                         }
@@ -146,7 +159,7 @@ fun CategoryDialog(
                                     .clip(CircleShape)
                                     .background(Color(colorValue))
                                     .then(
-                                        if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.secondary, CircleShape)
+                                        if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
                                         else Modifier
                                     )
                                     .clickable { selectedColor = colorValue }

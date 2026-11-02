@@ -261,7 +261,7 @@ class PhotosTimelineViewModel(
                 categoryId = categoryId,
                 title = title,
                 date = date,
-                location = "Local Gallery",
+                location = "",
                 note = "",
                 placeTag = "",
                 personTag = ""
@@ -276,11 +276,22 @@ class PhotosTimelineViewModel(
     }
 
     // Create event directly from suggested event card
-    fun createEventFromSuggestedCard(suggested: SuggestedEvent, onComplete: () -> Unit) {
+    fun createEventFromSuggestedCard(
+        suggested: SuggestedEvent,
+        categoryId: Long,
+        title: String,
+        newCategoryTitle: String? = null,
+        onComplete: () -> Unit
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
+            val targetCatId = if (newCategoryTitle != null) {
+                repository.createCategory(newCategoryTitle, "Recently", 0xFF35354A)
+            } else {
+                categoryId
+            }
             repository.createEventFromSuggested(
-                categoryId = -1L,
-                title = "Event on ${suggested.dateString}",
+                categoryId = targetCatId,
+                title = title,
                 date = suggested.dateString,
                 photoUris = suggested.photoUris
             )

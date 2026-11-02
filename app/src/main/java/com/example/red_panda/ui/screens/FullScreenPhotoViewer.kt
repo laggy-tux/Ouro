@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -26,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -82,10 +84,16 @@ fun FullScreenPhotoViewer(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
+            reverseLayout = false,
             userScrollEnabled = true
         ) { page ->
             var scale by remember { mutableFloatStateOf(1f) }
             var offset by remember { mutableStateOf(Offset.Zero) }
+
+            LaunchedEffect(pagerState.currentPage) {
+                scale = 1f
+                offset = Offset.Zero
+            }
 
             val transformableState = rememberTransformableState { zoomChange, offsetChange, _ ->
                 scale = (scale * zoomChange).coerceIn(1f, 4f)
@@ -121,9 +129,11 @@ fun FullScreenPhotoViewer(
                         .crossfade(true)
                         .build(),
                     contentDescription = "Photo ${page + 1} of ${photoUris.size}",
+                    alignment = Alignment.Center,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
+                        .align(Alignment.Center)
                         .graphicsLayer(
                             scaleX = scale,
                             scaleY = scale,
@@ -145,7 +155,8 @@ fun FullScreenPhotoViewer(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color.Black.copy(alpha = 0.5f))
-                    .padding(top = 28.dp, bottom = 12.dp, start = 12.dp, end = 12.dp),
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {

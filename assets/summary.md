@@ -302,3 +302,42 @@ Red-panda/
   * Validation: `app:assembleDebug` succeeded and `app:testDebugUnitTest` passed (1 test). Emulator checks covered the Photos viewport and select-mode action bar against the pill, the Add to Event existing/new tabs with pinned actions and fully visible event rows, and Settings/Photos in light and dark themes. The full device-size matrix was not run.
 * **Why it was executed:**
   * To keep dialogs legible and usable across themes and screen sizes, and prevent persistent navigation or feedback overlays from obscuring gallery content.
+
+---
+
+#### 🔹 Phase 14.5: Below-Cover Compact Filter Card, Truly Floating Switcher & Full-Screen Viewer Strip Hiding
+* **What was executed:**
+  * **Below-Cover Compact Filter Card**: Moved the Places and People filter card (`FloatingFilterCard`) in [DetailScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/DetailScreen.kt) directly below the album cover photo instead of overlapping on top of it. Reduced its height/padding (`vertical = 8.dp`) and font size (`14.sp`) to a compact `0.85f` max-width card.
+  * **Truly Floating Photo/Album Switcher**: Updated [FloatingPillNavigationBar.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/components/FloatingPillNavigationBar.kt) so the navigation pill is explicitly measured to its content (`wrapContentSize` with unbounded child constraints), not a full-width tray; its glass background and shadow remain limited to the capsule.
+  * **Full-Screen Photo Viewer and Image Navigation**: Updated [PhotosTimelineScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/PhotosTimelineScreen.kt) to draw `FullScreenPhotoViewer` above the entire Scaffold, hiding the Photos app bar (title, overflow, grid, and settings actions) while viewing an image. The pager supports horizontal navigation with right = next and left = previous, and retains pinch-to-zoom.
+* **How it was executed:**
+  * Re-ordered layout hierarchy in `DetailScreen.kt` using separate `item` entries for `HeroHeader` and `FloatingFilterCard`.
+  * Applied content-sized measurement to the switcher, configured the viewer pager's direction, and moved `FullScreenPhotoViewer` outside the Scaffold content in `PhotosTimelineScreen.kt`.
+  * Validation: `app:assembleDebug` completed successfully.
+* **Why it was executed:**
+  * To prevent the filter card from obscuring cover photos, convert the bottom navbar into a truly floating island pill, and hide the top app bar strip when viewing photos in full-screen.
+
+---
+
+#### 🔹 Phase 15: Real Data Only, Working Events & Truly Floating Switcher Over Content
+* **What was executed:**
+  * **Removed All Seeded Sample & Mock Data**:
+    * Removed `mockAlbums` dataset from [Album.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/model/Album.kt).
+    * Removed first-launch database seeding routines (`seedInitialDataIfEmpty()`) from [RedPandaApplication.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/RedPandaApplication.kt), [GalleryRepository.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/data/repository/GalleryRepository.kt), and [GalleryRepositoryImpl.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/data/repository/GalleryRepositoryImpl.kt).
+    * Guaranteed that fresh installations start completely empty, displaying Phase 10 empty state placeholders until real albums or events are created by the user.
+  * **End-to-End Working Suggested Events Flow**:
+    * Built [SuggestedEventDialog.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/components/SuggestedEventDialog.kt) enabling users to confirm event titles (prefilled with formatted dates, eliminating raw folder names like `"photos"` or `"Local Photos"`), preview untagged photos, and select or create destination albums.
+    * Connected suggested event creation in [HomeScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/HomeScreen.kt) and [PhotosTimelineScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/PhotosTimelineScreen.kt) to insert exact untagged photo references into Room, clear those items from the untagged suggested pool, and present in-app confirmation snackbars (`"Event '$title' created in '$albumName'!"`).
+    * Updated default location attributes to clean empty strings (`""`) instead of hardcoded strings like `"Local Gallery"` or `"Local Photos"`.
+    * Ensured each real album is uniquely listed in its designated section ("Recently" / "Other Albums").
+  * **Truly Floating Photo & Album Switcher Layout Fix**:
+    * Configured [HomeScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/HomeScreen.kt) and [PhotosTimelineScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/PhotosTimelineScreen.kt) `Scaffold` elements with `contentWindowInsets = WindowInsets(0, 0, 0, 0)`.
+    * Removed fixed bottom padding from `LazyVerticalGrid` `Modifier` and applied `contentPadding = PaddingValues(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 90.dp)` directly to grid containers.
+    * Extended the grid viewports all the way to the bottom edge of the display window. Albums and photos now scroll directly behind and to the sides of [FloatingPillNavigationBar.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/components/FloatingPillNavigationBar.kt) instead of rendering on top of a solid black bar.
+* **How it was executed:**
+  * Purged mock dataset definitions and seeding routines across the application architecture.
+  * Created `SuggestedEventDialog.kt` and wired it into `HomeViewModel` and `PhotosTimelineViewModel` with coroutine snackbar confirmations.
+  * Shifted viewport bounds to fill `fillMaxSize()` and placed insets inside `LazyVerticalGrid` `contentPadding`.
+  * Validation: Executed `app:assembleDebug` and `app:testDebugUnitTest` (all unit tests passed successfully).
+* **Why it was executed:**
+  * To ensure all application data is 100% user-generated on fresh installs, fix suggested event flow routing with explicit album destinations and clean titles, and make the navigation pill switcher truly float over scrolling gallery content without a black bar underneath.

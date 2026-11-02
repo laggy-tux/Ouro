@@ -1,5 +1,7 @@
 package com.example.red_panda.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,7 +85,6 @@ fun AddToEventDialog(
     val allEvents = remember(albums) {
         albums.flatMap { album -> album.events.map { event -> album to event } }
     }
-    val accent = MaterialTheme.colorScheme.secondary
     val eventButtonEnabled = if (selectedTab == 0) selectedEventId?.let { it > 0L } == true
     else newEventTitle.isNotBlank() && selectedCategoryId != null
 
@@ -99,7 +100,7 @@ fun AddToEventDialog(
                     }
                     showDatePicker = false
                 }) {
-                    Text("Select", color = MaterialTheme.colorScheme.secondary)
+                    Text("Select", color = MaterialTheme.colorScheme.onSurface)
                 }
             },
             dismissButton = {
@@ -120,7 +121,12 @@ fun AddToEventDialog(
             modifier = Modifier
                 .fillMaxWidth(0.94f)
                 .widthIn(max = 480.dp)
-                .heightIn(max = dialogMaxHeight),
+                .heightIn(max = dialogMaxHeight)
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    shape = RoundedCornerShape(28.dp)
+                ),
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
@@ -145,9 +151,9 @@ fun AddToEventDialog(
                         onClick = { selectedTab = 0 },
                         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
                         colors = SegmentedButtonDefaults.colors(
-                            activeContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            activeContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            activeBorderColor = accent,
+                            activeContainerColor = MaterialTheme.colorScheme.onSurface,
+                            activeContentColor = MaterialTheme.colorScheme.surface,
+                            activeBorderColor = MaterialTheme.colorScheme.onSurface,
                             inactiveContainerColor = MaterialTheme.colorScheme.surface,
                             inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             inactiveBorderColor = MaterialTheme.colorScheme.outline
@@ -160,9 +166,9 @@ fun AddToEventDialog(
                         onClick = { selectedTab = 1 },
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                         colors = SegmentedButtonDefaults.colors(
-                            activeContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                            activeContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            activeBorderColor = accent,
+                            activeContainerColor = MaterialTheme.colorScheme.onSurface,
+                            activeContentColor = MaterialTheme.colorScheme.surface,
+                            activeBorderColor = MaterialTheme.colorScheme.onSurface,
                             inactiveContainerColor = MaterialTheme.colorScheme.surface,
                             inactiveContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             inactiveBorderColor = MaterialTheme.colorScheme.outline
@@ -205,17 +211,17 @@ fun AddToEventDialog(
                                         .padding(vertical = 4.dp)
                                         .clickable { selectedEventId = eventId },
                                     shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(
+                                        width = if (isSelected) 1.5.dp else 1.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                                    ),
                                     colors = CardDefaults.cardColors(
                                         containerColor = if (isSelected) {
-                                            MaterialTheme.colorScheme.secondaryContainer
-                                        } else {
                                             MaterialTheme.colorScheme.surfaceVariant
-                                        },
-                                        contentColor = if (isSelected) {
-                                            MaterialTheme.colorScheme.onSecondaryContainer
                                         } else {
-                                            MaterialTheme.colorScheme.onSurface
-                                        }
+                                            MaterialTheme.colorScheme.surface
+                                        },
+                                        contentColor = MaterialTheme.colorScheme.onSurface
                                     )
                                 ) {
                                     Row(
@@ -228,7 +234,7 @@ fun AddToEventDialog(
                                             selected = isSelected,
                                             onClick = { selectedEventId = eventId },
                                             colors = RadioButtonDefaults.colors(
-                                                selectedColor = accent,
+                                                selectedColor = MaterialTheme.colorScheme.onSurface,
                                                 unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         )
@@ -301,7 +307,10 @@ fun AddToEventDialog(
                                         RadioButton(
                                             selected = selectedCategoryId == categoryId,
                                             onClick = { selectedCategoryId = categoryId },
-                                            colors = RadioButtonDefaults.colors(selectedColor = accent)
+                                            colors = RadioButtonDefaults.colors(
+                                                selectedColor = MaterialTheme.colorScheme.onSurface,
+                                                unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
