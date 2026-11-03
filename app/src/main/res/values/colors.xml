@@ -10,4 +10,5 @@
     <color name="background_dark">#FF000000</color>
     <color name="surface_dark">#FF0F1117</color>
     <color name="accent_amber">#FFFF7A00</color>
+    <color name="ic_launcher_background_color">#FF090810</color>
 </resources>
