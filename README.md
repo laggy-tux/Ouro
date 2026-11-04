@@ -1,96 +1,38 @@
-
 <img width="1446" height="1087" alt="Ouro_Futuristic_Media_Gallery_Poster_final" src="https://github.com/user-attachments/assets/6ed54213-ca72-4ca1-84ba-c63acf1bdb00" />
 
-An offline-first Android gallery that lets you organize the photos and videos already on your phone into **albums** and **events**, without copying, moving, or uploading a single file.
+# Ouro
 
-Ouro reads your media straight from the device's MediaStore, stores only lightweight references and organization data locally, and leaves your originals untouched. Deleting an album or event in Ouro never deletes a photo from your device.
+An offline-first Android gallery that organizes the photos and videos already on your phone into **albums** and **events**, without copying, moving, or uploading anything.
 
----
+Ouro reads media straight from MediaStore and stores only lightweight references locally. Deleting an album or event never deletes a photo from your device.
 
 ## Features
 
-### Photos
-- **Fast on large libraries**: Paging 3 over MediaStore with deterministic newest-first ordering, thumbnail downsampling, and live refresh when device media changes
-- **Select mode**: long-press to multi-select, then add the selection to an event
-- **Untagged only** filter to see what you haven't organized yet
-- **Photo Picker import** for images and videos, with persisted read access so picked media stays available
-
-### Albums and events
-- **Albums** (categories) contain dated **events**; events contain photos and videos
-- **Stable covers**: a new album or event takes its cover from the first photo added and keeps it as more are added. Covers can be changed manually, and are repaired automatically if the cover media disappears
-- **Event collages**: one large preview plus four small thumbnails with a `+N` overflow badge based on the real count
-- **Ordered event media**: photos keep the order in which they were added
-- **Slideshow** with autoplay and swipe paging; autoplay pauses on videos (coming soon)
-- **Favorites** for albums and photos
-- **Albums layout switch** between square (1:1) and wide (2:1) cards, remembered across restarts
-
-### Suggested events
-Ouro scans untagged media, clusters it by capture date, and suggests events you can create in one tap. Titles are prefilled from the date, and you choose or create the destination album. Suggestions can be dismissed individually or all at once, and dismissals persist.
-
-### Viewer
-- Full-screen viewer with swipe paging, pinch-to-zoom and double-tap zoom (swipes page unless the image is zoomed in)
-- Native video playback with standard controls
-
-### Look and feel
-- Light, dark, or system theme, applied before first paint so there is no theme flash on launch
-- Frosted-glass surfaces, a floating pill switcher for Photos and Albums, and content that scrolls behind it
-- Consistent slide/fade navigation and system Back handling throughout
-- Edge-to-edge layout, accessible touch targets, and scalable typography
-
-### Data safety
-- **No sample data**: a fresh install starts empty and shows empty states until you create something
-- **Partial photo access** supported on Android 14+, with clear in-app prompts for limited or denied access
-- **Missing media recovery**: references are reconciled on launch and after MediaStore changes, using content hashes to re-find files that moved
-- **Migrations without data loss**: Room schemas are exported and versioned, and destructive migration fallback is disabled
-- **Local JSON backup and restore** with no extra dependencies
-
----
+- **Fast browsing**: Paging 3 over MediaStore, newest-first, with live refresh when device media changes
+- **Albums and events**: albums contain dated events, which contain photos and videos, with stable auto-covers, collages, and ordered media
+- **Suggested events**: untagged media is clustered by capture date so you can create events in one tap
+- **Viewer**: full-screen swipe paging, pinch and double-tap zoom, native video playback
+- **Slideshow, favorites, and a square/wide album layout switch**
+- **Themes**: light, dark, or system, with no flash on launch
+- **Data safety**: no sample data, partial photo access on Android 14+, missing-media recovery via content hashes, Room migrations without data loss, and local JSON backup/restore
 
 ## Getting started
 
-### Requirements
-- Android Studio (recent stable release) with the Android SDK installed
-- JDK matching the version configured in `app/build.gradle.kts`
-- A device or emulator with photos and videos in its gallery
-
-### Build and run
+Requires Android Studio (recent stable), the Android SDK, and the JDK version set in `app/build.gradle.kts`.
 
 ```bash
-# Debug build
-./gradlew :app:assembleDebug
-
-# Unit tests
-./gradlew :app:testDebugUnitTest
+./gradlew :app:assembleDebug        # debug build
+./gradlew :app:testDebugUnitTest    # unit tests
 ```
 
-Or open the project in Android Studio and run the `app` configuration.
+A prebuilt debug APK is at `APKs/ouro-1.0.0.apk`.
 
-A prebuilt debug APK is kept at `APKs/ouro-1.0.0.apk`.
-
-### Permissions
-
-| Android version | Permission |
-|---|---|
-| 14+ | `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, `READ_MEDIA_VISUAL_USER_SELECTED` (partial access) |
-| 13 | `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO` |
-| 12 and below | `READ_EXTERNAL_STORAGE` |
-
-If you grant only partial access, the system Photo Picker lets you add more media to Ouro.
-
----
+**Permissions:** Android 14+ uses `READ_MEDIA_IMAGES`, `READ_MEDIA_VIDEO`, and `READ_MEDIA_VISUAL_USER_SELECTED`. Android 13 uses the first two. Android 12 and below uses `READ_EXTERNAL_STORAGE`. With partial access, the system Photo Picker lets you add more media.
 
 ## Status
 
-Ouro is in active development. The build has been validated with `assembleDebug` and unit tests on an emulator. Not yet done:
-
-- Stress testing on libraries of 5,000+ items
-- A full device-size test matrix
-- The **Web Viewer** section in Settings is a disabled placeholder
-
-Per-phase design notes live in `assets/phase-*.md`.
-
----
+In active development. Still to do: stress testing on 5,000+ item libraries, a full device-size test matrix, and the Web Viewer (currently a disabled placeholder in Settings). Design notes are in `assets/phase-*.md`.
 
 ## License
 
-No license has been chosen yet.
+None chosen yet.
