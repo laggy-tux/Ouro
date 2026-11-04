@@ -10,8 +10,6 @@ Ouro reads your media straight from the device's MediaStore, stores only lightwe
 ## Features
 
 ### Photos
-- **Continuous photo and video wall** in a three-column staggered layout that preserves each item's original aspect ratio
-- **Scroll date bubble**: a small bubble at the top shows the weekday, date and year of the first visible row while you scroll, then fades away
 - **Fast on large libraries**: Paging 3 over MediaStore with deterministic newest-first ordering, thumbnail downsampling, and live refresh when device media changes
 - **Select mode**: long-press to multi-select, then add the selection to an event
 - **Untagged only** filter to see what you haven't organized yet
