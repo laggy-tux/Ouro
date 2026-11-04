@@ -1,3 +1,4 @@
 # Ouro : A digital and minimal photo album
 
-<img width="450" height="450" alt="image" align="center" src="https://github.com/user-attachments/assets/99c3e6b9-bb09-4f84-9bac-7fa2e243d937" />
+<img width="1446" height="1087" alt="Ouro_Futuristic_Media_Gallery_Poster_final" src="https://github.com/user-attachments/assets/6ed54213-ca72-4ca1-84ba-c63acf1bdb00" />
+
