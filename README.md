@@ -35,4 +35,4 @@ In active development. Still to do: stress testing on 5,000+ item libraries, a f
 
 ## License
 
-None chosen yet.
+**MIT License**
