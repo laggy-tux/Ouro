@@ -16,10 +16,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,12 +27,15 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.Image
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +45,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -50,23 +54,26 @@ import com.example.red_panda.data.local.LocalPhotoItem
 import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.data.local.PhotoAccessState
 import com.example.red_panda.data.paging.TimelineItem
+import com.example.red_panda.R
 import com.example.red_panda.ui.components.AddToEventDialog
 import com.example.red_panda.ui.components.FloatingPillNavigationBarHeight
-import com.example.red_panda.ui.components.SuggestedEventDialog
-import com.example.red_panda.ui.model.SuggestedEvent
 import com.example.red_panda.ui.theme.HeartRed
 import com.example.red_panda.ui.theme.glassCard
 import com.example.red_panda.ui.viewmodel.PhotoFilter
 import com.example.red_panda.ui.viewmodel.PhotosTimelineViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PhotosTimelineScreen(
     viewModel: PhotosTimelineViewModel,
-    onSettingsClick: () -> Unit,
     onViewerVisibilityChanged: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
@@ -74,15 +81,10 @@ fun PhotosTimelineScreen(
     val coroutineScope = rememberCoroutineScope()
     val timelineItems = timelineItemsPaging(viewModel)
     val loadedTimelineItems = timelineItems.itemSnapshotList.items
-    val gridState = rememberLazyGridState()
+    val gridState = rememberLazyStaggeredGridState()
     val taggedUris by viewModel.taggedPhotoUris.collectAsState()
     val favoriteUris by viewModel.favoritePhotoUris.collectAsState()
     val albums by viewModel.albums.collectAsState()
-    val suggestedEvents by viewModel.suggestedEvents.collectAsState()
-
-    LaunchedEffect(Unit) {
-        viewModel.loadSuggestedEvents()
-    }
 
     var photoAccessState by remember {
         mutableStateOf(MediaStoreHelper.getPhotoAccessState(context))
@@ -92,7 +94,6 @@ fun PhotosTimelineScreen(
     var showAddToEventDialog by remember { mutableStateOf(false) }
     var defaultEventDate by remember { mutableStateOf<String?>(null) }
     var showMoreMenu by remember { mutableStateOf(false) }
-    var suggestedEventToCreate by remember { mutableStateOf<SuggestedEvent?>(null) }
 
     // Predictive back gestures
     BackHandler(enabled = selectedPhotoIndex >= 0) {
@@ -103,9 +104,6 @@ fun PhotosTimelineScreen(
     }
     BackHandler(enabled = selectedPhotoIndex < 0 && !viewModel.isSelectionMode && viewModel.activeFilter != PhotoFilter.ALL) {
         viewModel.setFilter(PhotoFilter.ALL)
-    }
-    BackHandler(enabled = suggestedEventToCreate != null) {
-        suggestedEventToCreate = null
     }
 
     LaunchedEffect(showAddToEventDialog, viewModel.selectedPhotoUris) {
@@ -125,7 +123,6 @@ fun PhotosTimelineScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 photoAccessState = MediaStoreHelper.getPhotoAccessState(context)
                 timelineItems.refresh()
-                viewModel.loadSuggestedEvents()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -202,27 +199,6 @@ fun PhotosTimelineScreen(
         )
     }
 
-    suggestedEventToCreate?.let { suggested ->
-        SuggestedEventDialog(
-            suggested = suggested,
-            albums = albums,
-            onDismiss = { suggestedEventToCreate = null },
-            onConfirm = { title, categoryId, albumName, newAlbumTitle ->
-                viewModel.createEventFromSuggestedCard(
-                    suggested = suggested,
-                    categoryId = categoryId,
-                    title = title,
-                    newCategoryTitle = newAlbumTitle
-                ) {
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar("Event '$title' created in '$albumName'!")
-                    }
-                }
-                suggestedEventToCreate = null
-            }
-        )
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -241,14 +217,15 @@ fun PhotosTimelineScreen(
                         )
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Photos",
-                                style = MaterialTheme.typography.titleLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 24.sp
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                            Image(
+                                painter = painterResource(R.drawable.ic_splash_logo),
+                                contentDescription = "Ouro",
+                                contentScale = ContentScale.Crop,
+                                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onBackground),
+                                modifier = Modifier
+                                    .offset(x = (-8).dp)
+                                    .width(112.dp)
+                                    .height(42.dp)
                             )
 
                             // Active Filter Chip Indicator
@@ -404,24 +381,6 @@ fun PhotosTimelineScreen(
                         }
                     }
 
-                    IconButton(
-                        onClick = { viewModel.toggleColumnCount() },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (viewModel.columnCount == 3) Icons.Default.GridOn else Icons.Default.GridView,
-                            contentDescription = "Toggle Grid Columns"
-                        )
-                    }
-                    IconButton(
-                        onClick = onSettingsClick,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings"
-                        )
-                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
@@ -709,170 +668,28 @@ fun PhotosTimelineScreen(
                     }
                 } else {
                     // Timeline Grid
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(viewModel.columnCount),
-                        state = gridState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
-                                FloatingPillNavigationBarHeight + 36.dp
-                        )
-                    ) {
-                        if (
-                            suggestedEvents.isNotEmpty() &&
-                            !viewModel.isSelectionMode &&
-                            photoAccessState != PhotoAccessState.DENIED
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        LazyVerticalStaggeredGrid(
+                            columns = StaggeredGridCells.Fixed(3),
+                            state = gridState,
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalItemSpacing = 3.dp,
+                            contentPadding = PaddingValues(
+                                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+                                    FloatingPillNavigationBarHeight + 36.dp
+                            )
                         ) {
-                            val firstSuggested = suggestedEvents.first()
-                            item(span = { GridItemSpan(maxLineSpan) }) {
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                                    ),
-                                    shape = RoundedCornerShape(16.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "Suggested Event • ${firstSuggested.dateString}",
-                                                modifier = Modifier.weight(1f),
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 14.sp,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                            IconButton(
-                                                onClick = {
-                                                    viewModel.dismissSuggestedEvent(firstSuggested.id)
-                                                },
-                                                modifier = Modifier.size(28.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Close,
-                                                    contentDescription = "Dismiss suggested event",
-                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                                )
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = "Create event from these ${firstSuggested.photoCount} untagged photos?",
-                                            fontSize = 13.sp,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                        )
-
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            firstSuggested.sampleUris.take(4).forEach { uri ->
-                                                AsyncImage(
-                                                    model = ImageRequest.Builder(context)
-                                                        .data(uri)
-                                                        .size(150, 150)
-                                                        .build(),
-                                                    contentDescription = null,
-                                                    contentScale = ContentScale.Crop,
-                                                    modifier = Modifier
-                                                        .size(50.dp)
-                                                        .clip(RoundedCornerShape(8.dp))
-                                                )
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Button(
-                                            onClick = {
-                                                suggestedEventToCreate = firstSuggested
-                                            },
-                                            shape = RoundedCornerShape(20.dp),
-                                            modifier = Modifier.align(Alignment.End)
-                                        ) {
-                                            Text("Create Event")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
                         items(
                             count = timelineItems.itemCount,
                             key = { index ->
                                 when (val item = timelineItems[index]) {
-                                    is TimelineItem.Header -> "header_${item.title}"
                                     is TimelineItem.Photo -> "photo_${item.photo.id}"
                                     null -> "placeholder_$index"
-                                }
-                            },
-                            span = { index ->
-                                when (timelineItems[index]) {
-                                    is TimelineItem.Header -> GridItemSpan(maxLineSpan)
-                                    else -> GridItemSpan(1)
                                 }
                             }
                         ) { index ->
                             when (val item = timelineItems[index]) {
-                                is TimelineItem.Header -> {
-                                    val headerPhotoUris = remember(index, loadedTimelineItems) {
-                                        val uris = mutableListOf<String>()
-                                        for (i in (index + 1) until loadedTimelineItems.size) {
-                                            when (val subItem = loadedTimelineItems[i]) {
-                                                is TimelineItem.Header -> break
-                                                is TimelineItem.Photo -> uris.add(subItem.photo.contentUri)
-                                            }
-                                        }
-                                        uris
-                                    }
-
-                                    val isAllSelectedInGroup = remember(headerPhotoUris, viewModel.selectedPhotoUris) {
-                                        headerPhotoUris.isNotEmpty() && headerPhotoUris.all { viewModel.selectedPhotoUris.contains(it) }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = item.title.uppercase(),
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 13.sp,
-                                                letterSpacing = 1.2.sp
-                                            ),
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-
-                                        if (viewModel.isSelectionMode) {
-                                            TextButton(
-                                                onClick = {
-                                                    viewModel.toggleDateGroupSelection(headerPhotoUris)
-                                                },
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                                            ) {
-                                                Text(
-                                                    text = if (isAllSelectedInGroup) "Deselect" else "Select All",
-                                                    fontSize = 12.sp,
-                                                    fontWeight = FontWeight.SemiBold
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
                                 is TimelineItem.Photo -> {
                                     val photoUri = item.photo.contentUri
                                     val isSelected = viewModel.selectedPhotoUris.contains(photoUri)
@@ -907,6 +724,13 @@ fun PhotosTimelineScreen(
                                 }
                             }
                         }
+                        }
+
+                        TimelineDateBubble(
+                            gridState = gridState,
+                            timelineItems = timelineItems,
+                            leadingItemCount = 0
+                        )
                     }
                 }
             }
@@ -1023,6 +847,77 @@ fun PhotosTimelineScreen(
 }
 
 @Composable
+private fun TimelineDateBubble(
+    gridState: LazyStaggeredGridState,
+    timelineItems: LazyPagingItems<TimelineItem>,
+    leadingItemCount: Int
+) {
+    val locale = Locale.getDefault()
+    val dateFormatter = remember(locale) {
+        DateTimeFormatter.ofPattern("EEE, d MMM yyyy", locale)
+    }
+    var isScrolling by remember { mutableStateOf(false) }
+    var dateLabel by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(gridState, timelineItems, leadingItemCount, dateFormatter) {
+        snapshotFlow {
+            val layoutInfo = gridState.layoutInfo
+            val visiblePhotoIndex = layoutInfo.visibleItemsInfo
+                .filter { it.index >= leadingItemCount }
+                .minByOrNull { it.offset.y }
+                ?.index
+                ?.minus(leadingItemCount)
+            val firstVisiblePhoto = visiblePhotoIndex
+                ?.let { timelineItems.itemSnapshotList.items.getOrNull(it) as? TimelineItem.Photo }
+            TimelineBubbleState(
+                isScrolling = gridState.isScrollInProgress,
+                visiblePhotoIndex = visiblePhotoIndex,
+                takenAt = firstVisiblePhoto?.photo?.takenAt
+            )
+        }.distinctUntilChanged().collect { state ->
+            isScrolling = state.isScrolling
+            dateLabel = state.takenAt?.let { takenAt ->
+                Instant.ofEpochMilli(takenAt)
+                    .atZone(ZoneId.systemDefault())
+                    .format(dateFormatter)
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(
+            visible = isScrolling && dateLabel != null,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { -it / 2 }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { -it / 2 }),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 12.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = Color(0xFF28252C),
+                shadowElevation = 4.dp
+            ) {
+                Text(
+                    text = dateLabel.orEmpty(),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    color = Color(0xFFF7F3F6),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+private data class TimelineBubbleState(
+    val isScrolling: Boolean,
+    val visiblePhotoIndex: Int?,
+    val takenAt: Long?
+)
+
+@Composable
 private fun timelineItemsPaging(viewModel: PhotosTimelineViewModel) =
     viewModel.timelineItems.collectAsLazyPagingItems()
 
@@ -1039,7 +934,13 @@ private fun PhotoGridTile(
 ) {
     Box(
         modifier = Modifier
-            .aspectRatio(1f)
+            .aspectRatio(
+                if (photo.width > 0 && photo.height > 0) {
+                    photo.width.toFloat() / photo.height.toFloat()
+                } else {
+                    1f
+                }
+            )
             .padding(3.dp)
             .clip(RoundedCornerShape(14.dp))
             .combinedClickable(

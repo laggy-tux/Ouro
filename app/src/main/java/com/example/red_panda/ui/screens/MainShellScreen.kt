@@ -53,7 +53,6 @@ fun MainShellScreen(
             when (tab) {
                 NavigationTab.PHOTOS -> PhotosTimelineScreen(
                     viewModel = photosTimelineViewModel,
-                    onSettingsClick = onSettingsClick,
                     onViewerVisibilityChanged = { isPhotoViewerOpen = it }
                 )
                 NavigationTab.ALBUMS -> HomeScreen(

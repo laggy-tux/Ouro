@@ -131,7 +131,7 @@ fun HomeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
-    var isGridTwoColumn by remember { mutableStateOf(true) }
+    val isGridTwoColumn by viewModel.albumGridTwoColumn.collectAsState()
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var albumToEdit by remember { mutableStateOf<Album?>(null) }
@@ -226,10 +226,14 @@ fun HomeScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = { isGridTwoColumn = !isGridTwoColumn }) {
+                    IconButton(onClick = viewModel::toggleAlbumGridMode) {
                         Icon(
                             imageVector = if (isGridTwoColumn) Icons.Default.GridOn else Icons.Default.GridView,
-                            contentDescription = if (isGridTwoColumn) "Switch to list" else "Switch to grid",
+                            contentDescription = if (isGridTwoColumn) {
+                                "Switch to 2:1 album cards"
+                            } else {
+                                "Switch to 1:1 album cards"
+                            },
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -430,6 +434,12 @@ fun HomeScreen(
                             },
                             onDismissSuggestedEvent = { suggested ->
                                 viewModel.dismissSuggestedEvent(context, suggested.id)
+                            },
+                            onDismissAll = {
+                                viewModel.dismissSuggestedEvents(
+                                    context,
+                                    suggestedEvents.map { it.id }
+                                )
                             }
                         )
                     }
@@ -464,6 +474,7 @@ fun HomeScreen(
                     items(sectionAlbums, key = { it.id }) { album ->
                         AlbumCard(
                             album = album,
+                            cardAspectRatio = if (isGridTwoColumn) 1f else 2f,
                             onClick = { onAlbumClick(album.id) },
                             onToggleFavorite = { viewModel.toggleFavorite(album.id) },
                             onEdit = { albumToEdit = album },
@@ -479,12 +490,12 @@ fun HomeScreen(
 @Composable
 fun AlbumCard(
     album: Album,
+    cardAspectRatio: Float,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    val cardHeight = 210.dp
     var showMenu by remember { mutableStateOf(false) }
 
     val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
@@ -493,7 +504,7 @@ fun AlbumCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(cardHeight)
+            .aspectRatio(cardAspectRatio)
             .glassCard(isDarkTheme = isDarkTheme, shape = RoundedCornerShape(22.dp))
             .background(
                 if (hasCover) Color(album.coverColor).copy(alpha = 0.5f)
@@ -649,7 +660,8 @@ fun AlbumCard(
 fun SuggestedEventsSection(
     suggestedEvents: List<SuggestedEvent>,
     onCreateSuggestedEvent: (SuggestedEvent) -> Unit,
-    onDismissSuggestedEvent: (SuggestedEvent) -> Unit
+    onDismissSuggestedEvent: (SuggestedEvent) -> Unit,
+    onDismissAll: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -660,21 +672,38 @@ fun SuggestedEventsSection(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(
-                    text = "Suggested Events",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "Suggested Events",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(
+                    onClick = onDismissAll,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Dismiss all suggestions",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(

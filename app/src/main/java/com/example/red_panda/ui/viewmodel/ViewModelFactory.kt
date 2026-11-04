@@ -3,14 +3,16 @@ package com.example.red_panda.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.example.red_panda.data.repository.GalleryRepository
+import com.example.red_panda.data.repository.SettingsRepository
 
 class HomeViewModelFactory(
-    private val repository: GalleryRepository
+    private val repository: GalleryRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
-            return HomeViewModel(repository) as T
+            return HomeViewModel(repository, settingsRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

@@ -2,7 +2,6 @@ package com.example.red_panda.ui.viewmodel
 
 import android.content.Context
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
@@ -12,7 +11,6 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
-import androidx.paging.insertSeparators
 import androidx.paging.map
 import com.example.red_panda.data.paging.MediaStorePagingSource
 import com.example.red_panda.data.paging.TimelineItem
@@ -44,13 +42,6 @@ class PhotosTimelineViewModel(
     private val repository: GalleryRepository
 ) : ViewModel() {
 
-    var columnCount by mutableIntStateOf(3)
-        private set
-
-    fun toggleColumnCount() {
-        columnCount = if (columnCount == 3) 4 else 3
-    }
-
     // Selection Mode State
     var isSelectionMode by mutableStateOf(false)
         private set
@@ -76,21 +67,6 @@ class PhotosTimelineViewModel(
             current.remove(uri)
         } else {
             current.add(uri)
-        }
-        selectedPhotoUris = current
-        if (selectedPhotoUris.isNotEmpty()) {
-            isSelectionMode = true
-        }
-    }
-
-    fun toggleDateGroupSelection(dateGroupUris: List<String>) {
-        if (dateGroupUris.isEmpty()) return
-        val current = selectedPhotoUris.toMutableSet()
-        val allSelected = dateGroupUris.all { current.contains(it) }
-        if (allSelected) {
-            current.removeAll(dateGroupUris.toSet())
-        } else {
-            current.addAll(dateGroupUris)
         }
         selectedPhotoUris = current
         if (selectedPhotoUris.isNotEmpty()) {
@@ -218,19 +194,9 @@ class PhotosTimelineViewModel(
         ).flow
             .map { pagingData ->
                 pagingData
-                    .map { photo -> TimelineItem.Photo(photo) }
-                    .insertSeparators { before: TimelineItem.Photo?, after: TimelineItem.Photo? ->
-                        if (before == null && after != null) {
-                            TimelineItem.Header(MediaStorePagingSource.formatDateHeader(after.photo.takenAt))
-                        } else if (before != null && after != null) {
-                            val beforeHeader = MediaStorePagingSource.formatDateHeader(before.photo.takenAt)
-                            val afterHeader = MediaStorePagingSource.formatDateHeader(after.photo.takenAt)
-                            if (beforeHeader != afterHeader) {
-                                TimelineItem.Header(afterHeader)
-                            } else null
-                        } else {
-                            null
-                        }
+                    .map { photo ->
+                        val item: TimelineItem = TimelineItem.Photo(photo)
+                        item
                     }
             }
     }.cachedIn(viewModelScope)

@@ -3,6 +3,7 @@ package com.example.red_panda.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.red_panda.data.repository.GalleryRepository
+import com.example.red_panda.data.repository.SettingsRepository
 import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.SuggestedEvent
 import kotlinx.coroutines.Dispatchers
@@ -15,7 +16,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class HomeViewModel(
-    private val repository: GalleryRepository
+    private val repository: GalleryRepository,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
 
     private val _suggestedEvents = MutableStateFlow<List<SuggestedEvent>>(emptyList())
@@ -28,6 +30,19 @@ class HomeViewModel(
             initialValue = emptyList()
         )
 
+    val albumGridTwoColumn: StateFlow<Boolean> = settingsRepository.albumGridTwoColumn
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = true
+        )
+
+    fun toggleAlbumGridMode() {
+        viewModelScope.launch {
+            settingsRepository.setAlbumGridTwoColumn(!albumGridTwoColumn.value)
+        }
+    }
+
     fun loadSuggestedEvents(context: android.content.Context) {
         viewModelScope.launch {
             val list = repository.getSuggestedEvents(context)
@@ -38,6 +53,16 @@ class HomeViewModel(
     fun dismissSuggestedEvent(context: android.content.Context, suggestionId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.dismissSuggestedEvent(context, suggestionId)
+            _suggestedEvents.value = repository.getSuggestedEvents(context)
+        }
+    }
+
+    fun dismissSuggestedEvents(context: android.content.Context, suggestionIds: List<String>) {
+        if (suggestionIds.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            suggestionIds.forEach { suggestionId ->
+                repository.dismissSuggestedEvent(context, suggestionId)
+            }
             _suggestedEvents.value = repository.getSuggestedEvents(context)
         }
     }

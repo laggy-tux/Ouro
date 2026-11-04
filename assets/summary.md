@@ -365,3 +365,22 @@ Red-panda/
   * Validation: `app:assembleDebug` and `app:testDebugUnitTest` succeeded after the video support changes (1 unit test passed).
 * **Why it was executed:**
   * To make navigation and photo browsing feel consistent, improve the placement and appearance of gallery controls, simplify album creation, keep branding consistent, and ensure event dates reflect when selected photos were captured.
+
+---
+
+#### 🔹 Phase 17: Continuous Photos Wall & Scroll Date Bubble
+* **What was executed:**
+  * Removed date separator items from the Photos timeline so photos and videos render as one continuous wall, without date-group headers or gaps.
+  * Replaced the right-edge drag scrubber with a small, centered bubble at the top of the photo wall. It appears only while the grid is scrolling and fades away when scrolling stops.
+  * The bubble displays the localized weekday, day, month, and year for the first visible photo row. It uses the photo's `takenAt` value, which already falls back to MediaStore's added date, in the device's local time zone.
+  * Replaced the Photos app-bar title with the Ouro wordmark tinted to the current theme, then shifted the logo 8dp left for closer alignment with the reference.
+  * Removed the grid-toggle and settings actions circled in the supplied reference image.
+  * Changed the timeline to a three-column staggered photo/video layout, sizing each tile from its MediaStore width and height to preserve the original media aspect ratio.
+  * Persisted the Albums layout switch selection across tab changes and app restarts, rendering album cards at 1:1 in square mode and 2:1 in wide mode until switched again.
+  * Removed the Suggested Event card from the Photos timeline so it no longer interrupts the continuous photo/video wall.
+  * Added a dismiss-all X to the Suggested Events header in Albums; dismissing it saves the hidden suggestions.
+* **How it was executed:**
+  * Looked up the visible photo date from the existing Paging snapshot, with no extra MediaStore query during scroll. The bubble label is recomputed only when the visible photo index or date changes.
+  * **Validation:** `:app:assembleDebug` succeeded, `:app:testDebugUnitTest` passed (1 unit test), and the updated screen was launched on the emulator.
+* **Why it was executed:**
+  * To match the supplied Ouro gallery reference: a continuous, naturally proportioned photo/video wall with temporary date context during scrolling.

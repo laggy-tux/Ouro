@@ -3,6 +3,7 @@ package com.example.red_panda.data.repository
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -19,7 +20,9 @@ enum class ThemeSetting {
 
 interface SettingsRepository {
     val themeSetting: Flow<ThemeSetting>
+    val albumGridTwoColumn: Flow<Boolean>
     suspend fun setThemeSetting(setting: ThemeSetting)
+    suspend fun setAlbumGridTwoColumn(enabled: Boolean)
 }
 
 class SettingsRepositoryImpl(
@@ -28,6 +31,7 @@ class SettingsRepositoryImpl(
 
     private object PreferencesKeys {
         val THEME_SETTING = stringPreferencesKey("theme_setting")
+        val ALBUM_GRID_TWO_COLUMN = booleanPreferencesKey("album_grid_two_column")
     }
 
     override val themeSetting: Flow<ThemeSetting> = context.dataStore.data.map { preferences ->
@@ -39,9 +43,20 @@ class SettingsRepositoryImpl(
         }
     }
 
+    override val albumGridTwoColumn: Flow<Boolean> =
+        context.dataStore.data.map { preferences ->
+            preferences[PreferencesKeys.ALBUM_GRID_TWO_COLUMN] ?: true
+        }
+
     override suspend fun setThemeSetting(setting: ThemeSetting) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.THEME_SETTING] = setting.name
+        }
+    }
+
+    override suspend fun setAlbumGridTwoColumn(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.ALBUM_GRID_TWO_COLUMN] = enabled
         }
     }
 }

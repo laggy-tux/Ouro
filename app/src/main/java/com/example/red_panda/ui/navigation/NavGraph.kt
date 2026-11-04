@@ -101,7 +101,7 @@ fun NavGraph(
             popExitTransition = { popExitTransition }
         ) {
                 val homeViewModel: HomeViewModel = viewModel(
-                    factory = HomeViewModelFactory(repository)
+                    factory = HomeViewModelFactory(repository, actualSettingsRepository)
                 )
                 val photosTimelineViewModel: PhotosTimelineViewModel = viewModel(
                     factory = PhotosTimelineViewModelFactory(context, repository)
@@ -125,7 +125,7 @@ fun NavGraph(
             popExitTransition = { popExitTransition }
         ) {
                 val homeViewModel: HomeViewModel = viewModel(
-                    factory = HomeViewModelFactory(repository)
+                    factory = HomeViewModelFactory(repository, actualSettingsRepository)
                 )
                 val photosTimelineViewModel: PhotosTimelineViewModel = viewModel(
                     factory = PhotosTimelineViewModelFactory(context, repository)
