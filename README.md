@@ -5,8 +5,6 @@ An offline-first Android gallery that lets you organize the photos and videos al
 
 Ouro reads your media straight from the device's MediaStore, stores only lightweight references and organization data locally, and leaves your originals untouched. Deleting an album or event in Ouro never deletes a photo from your device.
 
-> Formerly developed under the working name **Red-Panda**. The Kotlin source namespace is still `com.example.red_panda`; the installed application ID is `com.yahshua.ouro`.
-
 ---
 
 ## Features
@@ -24,7 +22,7 @@ Ouro reads your media straight from the device's MediaStore, stores only lightwe
 - **Stable covers**: a new album or event takes its cover from the first photo added and keeps it as more are added. Covers can be changed manually, and are repaired automatically if the cover media disappears
 - **Event collages**: one large preview plus four small thumbnails with a `+N` overflow badge based on the real count
 - **Ordered event media**: photos keep the order in which they were added
-- **Slideshow** with autoplay and swipe paging; autoplay pauses on videos
+- **Slideshow** with autoplay and swipe paging; autoplay pauses on videos (coming soon)
 - **Favorites** for albums and photos
 - **Albums layout switch** between square (1:1) and wide (2:1) cards, remembered across restarts
 
