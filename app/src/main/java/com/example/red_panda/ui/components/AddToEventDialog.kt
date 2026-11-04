@@ -65,6 +65,7 @@ import java.util.Locale
 fun AddToEventDialog(
     selectedPhotoCount: Int,
     albums: List<Album>,
+    defaultEventDate: String?,
     onDismiss: () -> Unit,
     onAddToExistingEvent: (eventId: Long) -> Unit,
     onCreateNewEvent: (categoryId: Long, title: String, date: String) -> Unit
@@ -73,8 +74,8 @@ fun AddToEventDialog(
     var selectedEventId by remember { mutableStateOf<Long?>(null) }
     var newEventTitle by remember { mutableStateOf("") }
     var selectedCategoryId by remember { mutableStateOf(albums.firstOrNull()?.id?.toLongOrNull()) }
-    var newEventDate by remember {
-        mutableStateOf(SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date()))
+    var newEventDate by remember(defaultEventDate) {
+        mutableStateOf(defaultEventDate.orEmpty())
     }
     var showDatePicker by remember { mutableStateOf(false) }
     val dialogMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
@@ -86,7 +87,7 @@ fun AddToEventDialog(
         albums.flatMap { album -> album.events.map { event -> album to event } }
     }
     val eventButtonEnabled = if (selectedTab == 0) selectedEventId?.let { it > 0L } == true
-    else newEventTitle.isNotBlank() && selectedCategoryId != null
+    else newEventTitle.isNotBlank() && selectedCategoryId != null && newEventDate.isNotBlank()
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState()
@@ -329,6 +330,7 @@ fun AddToEventDialog(
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("Event Date") },
+                            placeholder = { Text("Select date") },
                             trailingIcon = {
                                 IconButton(onClick = { showDatePicker = true }) {
                                     Icon(imageVector = Icons.Default.DateRange, contentDescription = "Select Date")

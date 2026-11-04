@@ -1,9 +1,16 @@
 package com.example.red_panda.ui.navigation
 
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -43,7 +50,20 @@ sealed class Screen(val route: String) {
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class)
+private const val NAVIGATION_TRANSITION_MILLIS = 280
+private val forwardEnterTransition =
+    slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(NAVIGATION_TRANSITION_MILLIS)) +
+        fadeIn(animationSpec = tween(NAVIGATION_TRANSITION_MILLIS), initialAlpha = 0.98f)
+private val forwardExitTransition =
+    slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(NAVIGATION_TRANSITION_MILLIS)) +
+        fadeOut(animationSpec = tween(NAVIGATION_TRANSITION_MILLIS), targetAlpha = 0.98f)
+private val popEnterTransition =
+    slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(NAVIGATION_TRANSITION_MILLIS)) +
+        fadeIn(animationSpec = tween(NAVIGATION_TRANSITION_MILLIS), initialAlpha = 0.98f)
+private val popExitTransition =
+    slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(NAVIGATION_TRANSITION_MILLIS)) +
+        fadeOut(animationSpec = tween(NAVIGATION_TRANSITION_MILLIS), targetAlpha = 0.98f)
+
 @Composable
 fun NavGraph(
     settingsRepository: SettingsRepository? = null
@@ -66,12 +86,20 @@ fun NavGraph(
         SettingsRepositoryImpl(context.applicationContext)
     }
 
-    SharedTransitionLayout {
-        NavHost(
-            navController = navController,
-            startDestination = Screen.MainShell.route
+    NavHost(
+        navController = navController,
+        startDestination = Screen.MainShell.route,
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        composable(
+            route = Screen.MainShell.route,
+            enterTransition = { forwardEnterTransition },
+            exitTransition = { forwardExitTransition },
+            popEnterTransition = { popEnterTransition },
+            popExitTransition = { popExitTransition }
         ) {
-            composable(Screen.MainShell.route) {
                 val homeViewModel: HomeViewModel = viewModel(
                     factory = HomeViewModelFactory(repository)
                 )
@@ -81,8 +109,6 @@ fun NavGraph(
                 MainShellScreen(
                     homeViewModel = homeViewModel,
                     photosTimelineViewModel = photosTimelineViewModel,
-                    sharedTransitionScope = this@SharedTransitionLayout,
-                    animatedVisibilityScope = this@composable,
                     onAlbumClick = { albumId ->
                         navController.navigate(Screen.Detail.createRoute(albumId))
                     },
@@ -90,8 +116,14 @@ fun NavGraph(
                         navController.navigate(Screen.Settings.route)
                     }
                 )
-            }
-            composable(Screen.Home.route) {
+        }
+        composable(
+            route = Screen.Home.route,
+            enterTransition = { forwardEnterTransition },
+            exitTransition = { forwardExitTransition },
+            popEnterTransition = { popEnterTransition },
+            popExitTransition = { popExitTransition }
+        ) {
                 val homeViewModel: HomeViewModel = viewModel(
                     factory = HomeViewModelFactory(repository)
                 )
@@ -101,8 +133,6 @@ fun NavGraph(
                 MainShellScreen(
                     homeViewModel = homeViewModel,
                     photosTimelineViewModel = photosTimelineViewModel,
-                    sharedTransitionScope = this@SharedTransitionLayout,
-                    animatedVisibilityScope = this@composable,
                     onAlbumClick = { albumId ->
                         navController.navigate(Screen.Detail.createRoute(albumId))
                     },
@@ -110,8 +140,14 @@ fun NavGraph(
                         navController.navigate(Screen.Settings.route)
                     }
                 )
-            }
-            composable(Screen.Settings.route) {
+        }
+        composable(
+            route = Screen.Settings.route,
+            enterTransition = { forwardEnterTransition },
+            exitTransition = { forwardExitTransition },
+            popEnterTransition = { popEnterTransition },
+            popExitTransition = { popExitTransition }
+        ) {
                 val settingsViewModel: SettingsViewModel = viewModel(
                     factory = SettingsViewModelFactory(actualSettingsRepository, repository)
                 )
@@ -121,10 +157,14 @@ fun NavGraph(
                         navController.popBackStack()
                     }
                 )
-            }
-            composable(
+        }
+        composable(
                 route = Screen.Detail.route,
-                arguments = listOf(navArgument("albumId") { type = NavType.StringType })
+                arguments = listOf(navArgument("albumId") { type = NavType.StringType }),
+                enterTransition = { forwardEnterTransition },
+                exitTransition = { forwardExitTransition },
+                popEnterTransition = { popEnterTransition },
+                popExitTransition = { popExitTransition }
             ) { backStackEntry ->
                 val albumIdString = backStackEntry.arguments?.getString("albumId") ?: "1"
                 val categoryId = albumIdString.toLongOrNull() ?: 1L
@@ -136,8 +176,6 @@ fun NavGraph(
 
                 DetailScreen(
                     viewModel = detailViewModel,
-                    sharedTransitionScope = this@SharedTransitionLayout,
-                    animatedVisibilityScope = this@composable,
                     onBackClick = {
                         navController.popBackStack()
                     },
@@ -145,10 +183,14 @@ fun NavGraph(
                         navController.navigate(Screen.EventDetail.createRoute(eventId))
                     }
                 )
-            }
-            composable(
+        }
+        composable(
                 route = Screen.EventDetail.route,
-                arguments = listOf(navArgument("eventId") { type = NavType.StringType })
+                arguments = listOf(navArgument("eventId") { type = NavType.StringType }),
+                enterTransition = { forwardEnterTransition },
+                exitTransition = { forwardExitTransition },
+                popEnterTransition = { popEnterTransition },
+                popExitTransition = { popExitTransition }
             ) { backStackEntry ->
                 val eventIdString = backStackEntry.arguments?.getString("eventId") ?: "1"
                 val eventId = eventIdString.toLongOrNull() ?: 1L
@@ -164,7 +206,6 @@ fun NavGraph(
                         navController.popBackStack()
                     }
                 )
-            }
         }
     }
 }

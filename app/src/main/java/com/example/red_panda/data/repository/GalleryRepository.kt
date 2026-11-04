@@ -55,6 +55,7 @@ interface GalleryRepository {
     suspend fun importBackupJson(jsonString: String): Pair<Int, Int>
 
     suspend fun getSuggestedEvents(context: android.content.Context): List<SuggestedEvent>
+    suspend fun dismissSuggestedEvent(context: android.content.Context, suggestionId: String)
     suspend fun createEventFromSuggested(
         categoryId: Long,
         title: String,

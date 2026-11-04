@@ -1,8 +1,5 @@
 package com.example.red_panda.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +13,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -24,24 +22,24 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.red_panda.ui.theme.glassNavbar
 
 enum class NavigationTab {
     PHOTOS,
     ALBUMS
 }
+
+internal val FloatingPillNavigationBarHeight = 52.dp
 
 @Composable
 fun FloatingPillNavigationBar(
@@ -49,8 +47,6 @@ fun FloatingPillNavigationBar(
     onTabSelected: (NavigationTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
-
     Box(
         modifier = modifier
             .wrapContentSize(Alignment.BottomCenter, unbounded = true)
@@ -58,10 +54,18 @@ fun FloatingPillNavigationBar(
             .padding(bottom = 20.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // Frosted Glass Floating Capsule Container matching iOS 26 glass theme
+        // A softly translucent surface lets photos show through while keeping labels legible.
         Box(
             modifier = Modifier
-                .glassNavbar(isDarkTheme = isDarkTheme)
+                .shadow(elevation = 8.dp, shape = RoundedCornerShape(32.dp))
+                .clip(RoundedCornerShape(32.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(32.dp)
+                )
+                .heightIn(min = FloatingPillNavigationBarHeight)
                 .padding(horizontal = 6.dp, vertical = 6.dp)
         ) {
             Row(
@@ -72,7 +76,6 @@ fun FloatingPillNavigationBar(
                     label = "Home",
                     icon = Icons.Default.Home,
                     isSelected = currentTab == NavigationTab.PHOTOS,
-                    isDarkTheme = isDarkTheme,
                     onClick = { onTabSelected(NavigationTab.PHOTOS) }
                 )
 
@@ -82,7 +85,6 @@ fun FloatingPillNavigationBar(
                     label = "Albums",
                     icon = Icons.Default.PhotoAlbum,
                     isSelected = currentTab == NavigationTab.ALBUMS,
-                    isDarkTheme = isDarkTheme,
                     onClick = { onTabSelected(NavigationTab.ALBUMS) }
                 )
             }
@@ -95,47 +97,15 @@ private fun GlassSegmentedNavItem(
     label: String,
     icon: ImageVector,
     isSelected: Boolean,
-    isDarkTheme: Boolean,
     onClick: () -> Unit
 ) {
-    // Both Home and Albums share the same dark glass active pill style with crisp white outline stroke
-    val activeBackgroundColor = if (isDarkTheme) {
-        Color(0xFF1E212E).copy(alpha = 0.85f)
+    val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
+    val contentColor = if (isSelected) {
+        MaterialTheme.colorScheme.onPrimary
     } else {
-        Color(0xFF0F121C).copy(alpha = 0.90f)
+        MaterialTheme.colorScheme.onSurfaceVariant
     }
-
-    val activeContentColor = Color.White
-
-    val inactiveContentColor = if (isDarkTheme) {
-        Color.White.copy(alpha = 0.55f)
-    } else {
-        Color(0xFF64748B)
-    }
-
-    val activeBorderColor = if (isSelected) {
-        if (isDarkTheme) Color.White.copy(alpha = 0.85f) else Color(0xFF0F121C)
-    } else {
-        Color.Transparent
-    }
-
-    val backgroundColor by animateColorAsState(
-        targetValue = if (isSelected) activeBackgroundColor else Color.Transparent,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "tabBackground"
-    )
-
-    val contentColor by animateColorAsState(
-        targetValue = if (isSelected) activeContentColor else inactiveContentColor,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "tabContent"
-    )
-
-    val borderColor by animateColorAsState(
-        targetValue = activeBorderColor,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "tabBorder"
-    )
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.outline else Color.Transparent
 
     val interactionSource = remember { MutableInteractionSource() }
 

@@ -18,6 +18,7 @@ data class EventMock(
 )
 
 data class SuggestedEvent(
+    val id: String,
     val dateString: String,
     val photoCount: Int,
     val sampleUris: List<String>,

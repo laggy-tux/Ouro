@@ -120,7 +120,10 @@ fun FullScreenPhotoViewer(
                             }
                         )
                     }
-                    .transformable(state = transformableState),
+                    .transformable(
+                        state = transformableState,
+                        canPan = { scale > 1f }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(

@@ -8,15 +8,13 @@ import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -28,13 +26,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CollectionsBookmark
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,6 +44,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,6 +58,7 @@ import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.data.local.PhotoAccessState
 import com.example.red_panda.ui.components.CategoryDialog
 import com.example.red_panda.ui.components.ConfirmDeleteDialog
+import com.example.red_panda.ui.components.FloatingPillNavigationBarHeight
 import com.example.red_panda.ui.components.SuggestedEventDialog
 import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.SuggestedEvent
@@ -66,18 +67,22 @@ import com.example.red_panda.ui.theme.glassCard
 import com.example.red_panda.ui.viewmodel.HomeViewModel
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     onAlbumClick: (String) -> Unit,
     onSettingsClick: () -> Unit = {}
 ) {
     val albums by viewModel.albums.collectAsState()
     val suggestedEvents by viewModel.suggestedEvents.collectAsState()
     val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        if (MediaStoreHelper.getPhotoAccessState(context) != PhotoAccessState.DENIED) {
+            viewModel.loadSuggestedEvents(context)
+        }
+    }
 
     val permissionsToRequest = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
@@ -221,8 +226,8 @@ fun HomeScreen(
                 actions = {
                     IconButton(onClick = { isGridTwoColumn = !isGridTwoColumn }) {
                         Icon(
-                            imageVector = Icons.Default.GridOn,
-                            contentDescription = "Toggle Grid",
+                            imageVector = if (isGridTwoColumn) Icons.Default.GridOn else Icons.Default.GridView,
+                            contentDescription = if (isGridTwoColumn) "Switch to list" else "Switch to grid",
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -263,7 +268,8 @@ fun HomeScreen(
                     .fillMaxSize()
                     .padding(
                         top = innerPadding.calculateTopPadding(),
-                        bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 90.dp
+                        bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+                            FloatingPillNavigationBarHeight + 36.dp
                     )
                     .padding(horizontal = 32.dp),
                 contentAlignment = Alignment.Center
@@ -319,7 +325,8 @@ fun HomeScreen(
                     start = 16.dp,
                     end = 16.dp,
                     top = innerPadding.calculateTopPadding() + 8.dp,
-                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 90.dp
+                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+                        FloatingPillNavigationBarHeight + 36.dp
                 ),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -418,6 +425,9 @@ fun HomeScreen(
                             suggestedEvents = suggestedEvents,
                             onCreateSuggestedEvent = { suggested ->
                                 suggestedEventToCreate = suggested
+                            },
+                            onDismissSuggestedEvent = { suggested ->
+                                viewModel.dismissSuggestedEvent(context, suggested.id)
                             }
                         )
                     }
@@ -452,8 +462,6 @@ fun HomeScreen(
                     items(sectionAlbums, key = { it.id }) { album ->
                         AlbumCard(
                             album = album,
-                            sharedTransitionScope = sharedTransitionScope,
-                            animatedVisibilityScope = animatedVisibilityScope,
                             onClick = { onAlbumClick(album.id) },
                             onToggleFavorite = { viewModel.toggleFavorite(album.id) },
                             onEdit = { albumToEdit = album },
@@ -466,12 +474,9 @@ fun HomeScreen(
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun AlbumCard(
     album: Album,
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
     onEdit: () -> Unit,
@@ -480,26 +485,13 @@ fun AlbumCard(
     val cardHeight = 210.dp
     var showMenu by remember { mutableStateOf(false) }
 
-    val baseModifier = Modifier
-        .fillMaxWidth()
-        .height(cardHeight)
-
-    val transitionModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
-        with(sharedTransitionScope) {
-            baseModifier.sharedBounds(
-                sharedContentState = rememberSharedContentState(key = "album-cover-${album.id}"),
-                animatedVisibilityScope = animatedVisibilityScope
-            )
-        }
-    } else {
-        baseModifier
-    }
-
     val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val hasCover = !album.coverPhotoUri.isNullOrBlank()
 
     Box(
-        modifier = transitionModifier
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(cardHeight)
             .glassCard(isDarkTheme = isDarkTheme, shape = RoundedCornerShape(22.dp))
             .background(
                 if (hasCover) Color(album.coverColor).copy(alpha = 0.5f)
@@ -654,7 +646,8 @@ fun AlbumCard(
 @Composable
 fun SuggestedEventsSection(
     suggestedEvents: List<SuggestedEvent>,
-    onCreateSuggestedEvent: (SuggestedEvent) -> Unit
+    onCreateSuggestedEvent: (SuggestedEvent) -> Unit,
+    onDismissSuggestedEvent: (SuggestedEvent) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -689,14 +682,25 @@ fun SuggestedEventsSection(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(suggestedEvents) { suggested ->
-                    SuggestedEventCard(
-                        suggested = suggested,
-                        onCreateClick = { onCreateSuggestedEvent(suggested) }
-                    )
+            BoxWithConstraints {
+                val listState = rememberLazyListState()
+                val cardWidth = minOf(
+                    LocalConfiguration.current.screenWidthDp.dp * 0.85f,
+                    maxWidth
+                )
+                LazyRow(
+                    state = listState,
+                    flingBehavior = rememberSnapFlingBehavior(lazyListState = listState),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(suggestedEvents, key = { it.id }) { suggested ->
+                        SuggestedEventCard(
+                            suggested = suggested,
+                            cardWidth = cardWidth,
+                            onCreateClick = { onCreateSuggestedEvent(suggested) },
+                            onDismissClick = { onDismissSuggestedEvent(suggested) }
+                        )
+                    }
                 }
             }
         }
@@ -706,10 +710,12 @@ fun SuggestedEventsSection(
 @Composable
 fun SuggestedEventCard(
     suggested: SuggestedEvent,
-    onCreateClick: () -> Unit
+    cardWidth: androidx.compose.ui.unit.Dp,
+    onCreateClick: () -> Unit,
+    onDismissClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.width(220.dp),
+        modifier = Modifier.width(cardWidth),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -723,6 +729,7 @@ fun SuggestedEventCard(
             ) {
                 Text(
                     text = suggested.dateString,
+                    modifier = Modifier.weight(1f),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -732,6 +739,17 @@ fun SuggestedEventCard(
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                IconButton(
+                    onClick = onDismissClick,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Dismiss suggested event",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
 

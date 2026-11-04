@@ -2,7 +2,6 @@ package com.example.red_panda.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,10 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -36,18 +32,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-
-val categoryCoverColors = listOf(
-    0xFF4A3525, 0xFF284035, 0xFF35354A, 0xFF4A2535,
-    0xFF254A35, 0xFF25354A, 0xFF3D3D3D, 0xFF4A2525,
-)
 
 @Composable
 fun CategoryDialog(
@@ -60,7 +49,7 @@ fun CategoryDialog(
 ) {
     var name by remember { mutableStateOf(initialName) }
     var selectedSection by remember { mutableStateOf(initialSection.ifBlank { "Other Albums" }) }
-    var selectedColor by remember { mutableStateOf(if (initialColor != 0L) initialColor else categoryCoverColors.first()) }
+    val selectedColor = if (initialColor != 0L) initialColor else 0xFF2C2C30
     val dialogMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
 
     Dialog(
@@ -137,32 +126,6 @@ fun CategoryDialog(
                                     borderColor = MaterialTheme.colorScheme.outline,
                                     selectedBorderColor = MaterialTheme.colorScheme.onSurface
                                 )
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Cover Theme",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(categoryCoverColors) { colorValue ->
-                            val isSelected = selectedColor == colorValue
-                            Box(
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(colorValue))
-                                    .then(
-                                        if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                        else Modifier
-                                    )
-                                    .clickable { selectedColor = colorValue }
                             )
                         }
                     }

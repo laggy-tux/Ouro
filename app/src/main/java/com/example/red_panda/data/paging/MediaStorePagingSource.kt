@@ -171,7 +171,10 @@ class MediaStorePagingSource(
                 when (photoDate) {
                     today -> "Today"
                     yesterday -> "Yesterday"
-                    else -> photoDate.format(DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.getDefault()))
+                    else -> {
+                        val pattern = if (photoDate.year == today.year) "MMM d" else "MMM d, yyyy"
+                        photoDate.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
+                    }
                 }
             } catch (_: Exception) {
                 "Unknown Date"

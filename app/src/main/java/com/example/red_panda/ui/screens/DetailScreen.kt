@@ -4,9 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -18,6 +15,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -55,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import kotlinx.coroutines.launch
 import com.example.red_panda.data.local.entity.PhotoRefEntity
 import com.example.red_panda.ui.components.CategoryDialog
 import com.example.red_panda.ui.components.ConfirmDeleteDialog
@@ -63,12 +63,9 @@ import com.example.red_panda.ui.components.popupButtonColors
 import com.example.red_panda.ui.model.EventMock
 import com.example.red_panda.ui.viewmodel.DetailViewModel
 
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun DetailScreen(
     viewModel: DetailViewModel,
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     onBackClick: () -> Unit,
     onEventClick: (String) -> Unit = {}
 ) {
@@ -245,14 +242,11 @@ fun DetailScreen(
                 // Hero Cover Header
                 item {
                     HeroHeader(
-                        albumId = category.id.toString(),
                         title = category.name,
                         photoCount = totalPhotoCount,
                         coverColor = category.coverColor,
                         coverPhotoUri = coverPhotoUri,
                         isFavorite = category.isFavorite,
-                        sharedTransitionScope = sharedTransitionScope,
-                        animatedVisibilityScope = animatedVisibilityScope,
                         onBackClick = onBackClick,
                         onStartSlideshow = { showSlideshow = true },
                         onToggleFavorite = { viewModel.toggleFavorite() },
@@ -368,17 +362,13 @@ fun DetailScreen(
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun HeroHeader(
-    albumId: String,
     title: String,
     photoCount: Int,
     coverColor: Long,
     coverPhotoUri: String? = null,
     isFavorite: Boolean,
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     onBackClick: () -> Unit,
     onStartSlideshow: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -390,23 +380,10 @@ fun HeroHeader(
     val headerHeight = 280.dp
     var showMenu by remember { mutableStateOf(false) }
 
-    val baseModifier = Modifier
-        .fillMaxWidth()
-        .height(headerHeight)
-
-    val transitionModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
-        with(sharedTransitionScope) {
-            baseModifier.sharedBounds(
-                sharedContentState = rememberSharedContentState(key = "album-cover-$albumId"),
-                animatedVisibilityScope = animatedVisibilityScope
-            )
-        }
-    } else {
-        baseModifier
-    }
-
     Box(
-        modifier = transitionModifier
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(headerHeight)
             .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
             .background(Color(coverColor))
     ) {
@@ -542,24 +519,13 @@ fun HeroHeader(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val titleModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
-                with(sharedTransitionScope) {
-                    Modifier.sharedBounds(
-                        sharedContentState = rememberSharedContentState(key = "album-title-$albumId"),
-                        animatedVisibilityScope = animatedVisibilityScope
-                    )
-                }
-            } else {
-                Modifier
-            }
-
             Text(
                 text = title,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center,
-                modifier = titleModifier
+                modifier = Modifier
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -998,13 +964,14 @@ fun AlbumSlideshowViewer(
         return
     }
 
-    var currentIndex by remember { mutableIntStateOf(0) }
     var isPlaying by remember { mutableStateOf(true) }
+    val pagerState = rememberPagerState(pageCount = { photoUris.size })
+    val coroutineScope = rememberCoroutineScope()
 
-    LaunchedEffect(isPlaying, currentIndex, photoUris) {
-        if (isPlaying && photoUris.isNotEmpty()) {
+    LaunchedEffect(isPlaying, photoUris) {
+        while (isPlaying) {
             kotlinx.coroutines.delay(3000L)
-            currentIndex = (currentIndex + 1) % photoUris.size
+            pagerState.animateScrollToPage((pagerState.currentPage + 1) % photoUris.size)
         }
     }
 
@@ -1016,15 +983,22 @@ fun AlbumSlideshowViewer(
             .background(Color.Black)
             .clickable { isPlaying = !isPlaying }
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(photoUris[currentIndex])
-                .crossfade(true)
-                .build(),
-            contentDescription = "Slideshow photo ${currentIndex + 1}",
-            contentScale = ContentScale.Fit,
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier.fillMaxSize()
-        )
+        ) { page ->
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(photoUris[page])
+                    .crossfade(true)
+                    .build(),
+                contentDescription = "Slideshow photo ${page + 1}",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { isPlaying = !isPlaying }
+            )
+        }
 
         // Top bar
         Row(
@@ -1036,7 +1010,7 @@ fun AlbumSlideshowViewer(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${currentIndex + 1} / ${photoUris.size}",
+                text = "${pagerState.currentPage + 1} / ${photoUris.size}",
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
@@ -1064,7 +1038,14 @@ fun AlbumSlideshowViewer(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = {
-                currentIndex = if (currentIndex > 0) currentIndex - 1 else photoUris.size - 1
+                coroutineScope.launch {
+                    val previousPage = if (pagerState.currentPage > 0) {
+                        pagerState.currentPage - 1
+                    } else {
+                        photoUris.lastIndex
+                    }
+                    pagerState.animateScrollToPage(previousPage)
+                }
             }) {
                 Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color.White)
             }
@@ -1078,7 +1059,9 @@ fun AlbumSlideshowViewer(
             }
 
             IconButton(onClick = {
-                currentIndex = (currentIndex + 1) % photoUris.size
+                coroutineScope.launch {
+                    pagerState.animateScrollToPage((pagerState.currentPage + 1) % photoUris.size)
+                }
             }) {
                 Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White)
             }

@@ -341,3 +341,24 @@ Red-panda/
   * Validation: Executed `app:assembleDebug` and `app:testDebugUnitTest` (all unit tests passed successfully).
 * **Why it was executed:**
   * To ensure all application data is 100% user-generated on fresh installs, fix suggested event flow routing with explicit album destinations and clean titles, and make the navigation pill switcher truly float over scrolling gallery content without a black bar underneath.
+
+---
+
+#### 🔹 Phase 16: Navigation, Home Layout & Suggested Event Dismissal
+* **What was executed:**
+  * Replaced route-level shared-element transitions with consistent 280 ms slide/fade transitions for forward navigation and Back. Disabled Android’s predictive-back callback preview so the system Back gesture and in-app Back use the same route animation. Bottom-tab changes use a 130 ms fade.
+  * Moved the newest active suggested event into the Photos timeline grid as its first full-span item, removed duplicated top inset padding, set date-header spacing to 16dp, and tied bottom scroll padding to the floating-nav height. Raised the Photos selection action bar, including “Add to Event,” by 16dp.
+  * Added stable suggestion keys based on the local date group and sorted MediaStore photo IDs. Persisted dismissed keys in DataStore; Photos shows only the newest active suggestion while Albums shows all active suggestions, and both cards can be dismissed. Made the Albums suggestion carousel snap with cards constrained to about 85% of screen width.
+  * Updated the grid/list control icons and refined the floating photo/album switcher with a slightly translucent surface and border in both light and dark themes. Gave the NavHost and screen roots opaque theme backgrounds.
+  * Removed the cover-color palette from the New Album dialog while retaining the existing default cover color. Updated user-facing app branding and exported-backup metadata to “Ouro.”
+  * Added horizontal swipe paging to the album slideshow: swiping left advances and swiping right returns to the previous photo, while preserving autoplay and the previous/next controls. In the shared full-screen photo viewer, horizontal swipes page unless the photo is zoomed in.
+  * New events created from selected photos now default to the latest available photo capture date from MediaStore metadata (`DATE_TAKEN`, with `DATE_ADDED` as fallback) rather than today. If no usable date is available, the field stays blank and requires manual selection.
+  * Reconciles missing photo references on app start and after MediaStore changes when full photo access is available; removed the manual cleanup button. Current-year timeline headers omit the year, and Coil retains its EXIF-aware decoding for MediaStore images.
+  * Changed the installed application ID to `com.yahshua.ouro`, while retaining `com.example.red_panda` as the Kotlin source namespace; updated the instrumented-test package expectation accordingly. Rebuilt the debug APK as `APKs/ouro-1.0.0.apk`.
+* **How it was executed:**
+  * Applied shared route transitions to each NavHost destination and adjusted the Android back callback setting for matching Back behavior.
+  * Centralized suggestion IDs and dismissed-ID persistence in the existing repository/DataStore path, then wired both screens to the shared active suggestion list.
+  * Updated the album slideshow to use a horizontal pager, added zoom-aware gesture handling to the full-screen pager, and queried selected-photo date metadata before initializing the Add to Event dialog.
+  * Validation: `app:assembleDebug` succeeded after the animation, swipe, layout, and photo-metadata-date changes. Earlier Phase 16 validation also included `app:testDebugUnitTest` (1 unit test passed).
+* **Why it was executed:**
+  * To make navigation and photo browsing feel consistent, improve the placement and appearance of gallery controls, simplify album creation, keep branding consistent, and ensure event dates reflect when selected photos were captured.

@@ -69,7 +69,6 @@
     <string name="section_photos">Photo Access</string>
     <string name="section_storage">Storage &amp; Cache</string>
     <string name="clear_cache">Clear Image Cache</string>
-    <string name="remove_missing_photos">Remove Missing Photos</string>
     <string name="section_backup">Backup &amp; Restore</string>
     <string name="export_backup">Export Backup</string>
     <string name="restore_backup">Restore Backup</string>

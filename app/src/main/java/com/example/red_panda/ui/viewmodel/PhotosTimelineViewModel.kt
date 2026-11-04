@@ -172,11 +172,11 @@ class PhotosTimelineViewModel(
     private val _suggestedEvents = MutableStateFlow<List<SuggestedEvent>>(emptyList())
     val suggestedEvents: StateFlow<List<SuggestedEvent>> = _suggestedEvents.asStateFlow()
 
-    var isSuggestedEventsDismissed by mutableStateOf(false)
-        private set
-
-    fun dismissSuggestedEvents() {
-        isSuggestedEventsDismissed = true
+    fun dismissSuggestedEvent(suggestionId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.dismissSuggestedEvent(context, suggestionId)
+            _suggestedEvents.value = repository.getSuggestedEvents(context)
+        }
     }
 
     fun loadSuggestedEvents() {

@@ -276,25 +276,10 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Scan database and remove references to photos deleted from device gallery.",
+                        text = "Missing photo references are reconciled automatically when the app starts and when your gallery changes.",
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = {
-                            viewModel.cleanupMissingPhotos(context) { count ->
-                                val msg = if (count > 0) {
-                                    "Cleaned up $count missing photo reference(s)"
-                                } else {
-                                    "No missing photo references found"
-                                }
-                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    ) {
-                        Text("Remove Missing Photos")
-                    }
                 }
             }
 

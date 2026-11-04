@@ -11,7 +11,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.red_panda"
+        applicationId = "com.yahshua.ouro"
         minSdk = 26
         targetSdk = 37
         versionCode = 1

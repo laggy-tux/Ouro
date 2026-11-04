@@ -30,6 +30,7 @@ data class LocalPhotoItem(
 )
 
 data class SuggestedEventItem(
+    val id: String,
     val dateString: String,
     val dateMillis: Long,
     val photos: List<LocalPhotoItem>
@@ -126,6 +127,43 @@ object MediaStoreHelper {
         }
     }
 
+    fun getDefaultEventDate(context: Context, uriStrings: List<String>): String? {
+        val metadataDates = uriStrings.mapNotNull { uriString ->
+            val uri = Uri.parse(uriString)
+            try {
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(
+                        MediaStore.Images.Media.DATE_TAKEN,
+                        MediaStore.Images.Media.DATE_ADDED
+                    ),
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    if (!cursor.moveToFirst()) {
+                        null
+                    } else {
+                        val takenColumn = cursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN)
+                        val addedColumn = cursor.getColumnIndex(MediaStore.Images.Media.DATE_ADDED)
+                        val takenAt = if (takenColumn >= 0) cursor.getLong(takenColumn) else 0L
+                        val addedAt = if (addedColumn >= 0) cursor.getLong(addedColumn) * 1000L else 0L
+                        takenAt.takeIf { it > 0L } to addedAt.takeIf { it > 0L }
+                    }
+                }
+            } catch (_: SecurityException) {
+                null
+            } catch (_: IllegalArgumentException) {
+                null
+            }
+        }
+
+        val dateMillis = metadataDates.mapNotNull { it.first }.maxOrNull()
+            ?: metadataDates.mapNotNull { it.second }.maxOrNull()
+            ?: return null
+        return formatDate(dateMillis)
+    }
+
     fun fetchAllMediaStorePhotos(context: Context): List<LocalPhotoItem> {
         val photos = mutableListOf<LocalPhotoItem>()
         val projection = arrayOf(
@@ -203,7 +241,14 @@ object MediaStoreHelper {
         return groupedByDate.mapNotNull { (dateStr, photos) ->
             if (photos.size >= 2) {
                 val latestTime = photos.maxOfOrNull { it.takenAt } ?: System.currentTimeMillis()
+                val dateGroupKey = Instant.ofEpochMilli(latestTime)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                val photoIdsHash = MessageDigest.getInstance("SHA-256")
+                    .digest(photos.map { it.id }.sorted().joinToString(",").toByteArray())
+                    .joinToString("") { "%02x".format(it) }
                 SuggestedEventItem(
+                    id = "$dateGroupKey:$photoIdsHash",
                     dateString = dateStr,
                     dateMillis = latestTime,
                     photos = photos

@@ -1,9 +1,12 @@
 package com.example.red_panda.ui.screens
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -13,18 +16,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.MaterialTheme
 import com.example.red_panda.ui.components.FloatingPillNavigationBar
 import com.example.red_panda.ui.components.NavigationTab
 import com.example.red_panda.ui.viewmodel.HomeViewModel
 import com.example.red_panda.ui.viewmodel.PhotosTimelineViewModel
 
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun MainShellScreen(
     homeViewModel: HomeViewModel,
     photosTimelineViewModel: PhotosTimelineViewModel,
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null,
     onAlbumClick: (String) -> Unit,
     onSettingsClick: () -> Unit
 ) {
@@ -36,20 +37,27 @@ fun MainShellScreen(
         currentTab = NavigationTab.PHOTOS
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        when (currentTab) {
-            NavigationTab.PHOTOS -> {
-                PhotosTimelineScreen(
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        AnimatedContent(
+            targetState = currentTab,
+            transitionSpec = {
+                fadeIn(animationSpec = tween(130)) togetherWith
+                    fadeOut(animationSpec = tween(130))
+            },
+            label = "mainTab"
+        ) { tab ->
+            when (tab) {
+                NavigationTab.PHOTOS -> PhotosTimelineScreen(
                     viewModel = photosTimelineViewModel,
                     onSettingsClick = onSettingsClick,
                     onViewerVisibilityChanged = { isPhotoViewerOpen = it }
                 )
-            }
-            NavigationTab.ALBUMS -> {
-                HomeScreen(
+                NavigationTab.ALBUMS -> HomeScreen(
                     viewModel = homeViewModel,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedVisibilityScope = animatedVisibilityScope,
                     onAlbumClick = onAlbumClick,
                     onSettingsClick = onSettingsClick
                 )

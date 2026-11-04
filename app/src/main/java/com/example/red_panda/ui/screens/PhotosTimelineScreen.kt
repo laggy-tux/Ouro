@@ -52,13 +52,16 @@ import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.data.local.PhotoAccessState
 import com.example.red_panda.data.paging.TimelineItem
 import com.example.red_panda.ui.components.AddToEventDialog
+import com.example.red_panda.ui.components.FloatingPillNavigationBarHeight
 import com.example.red_panda.ui.components.SuggestedEventDialog
 import com.example.red_panda.ui.model.SuggestedEvent
 import com.example.red_panda.ui.theme.HeartRed
 import com.example.red_panda.ui.theme.glassCard
 import com.example.red_panda.ui.viewmodel.PhotoFilter
 import com.example.red_panda.ui.viewmodel.PhotosTimelineViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,12 +81,17 @@ fun PhotosTimelineScreen(
     val albums by viewModel.albums.collectAsState()
     val suggestedEvents by viewModel.suggestedEvents.collectAsState()
 
+    LaunchedEffect(Unit) {
+        viewModel.loadSuggestedEvents()
+    }
+
     var photoAccessState by remember {
         mutableStateOf(MediaStoreHelper.getPhotoAccessState(context))
     }
 
     var selectedPhotoIndex by rememberSaveable { mutableIntStateOf(-1) }
     var showAddToEventDialog by remember { mutableStateOf(false) }
+    var defaultEventDate by remember { mutableStateOf<String?>(null) }
     var showMoreMenu by remember { mutableStateOf(false) }
     var suggestedEventToCreate by remember { mutableStateOf<SuggestedEvent?>(null) }
 
@@ -99,6 +107,17 @@ fun PhotosTimelineScreen(
     }
     BackHandler(enabled = suggestedEventToCreate != null) {
         suggestedEventToCreate = null
+    }
+
+    LaunchedEffect(showAddToEventDialog, viewModel.selectedPhotoUris) {
+        if (showAddToEventDialog && viewModel.selectedPhotoUris.isNotEmpty()) {
+            val selectedUris = viewModel.selectedPhotoUris.toList()
+            defaultEventDate = withContext(Dispatchers.IO) {
+                MediaStoreHelper.getDefaultEventDate(context, selectedUris)
+            }
+        } else {
+            defaultEventDate = null
+        }
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -147,6 +166,7 @@ fun PhotosTimelineScreen(
         AddToEventDialog(
             selectedPhotoCount = photosToAdd,
             albums = albums,
+            defaultEventDate = defaultEventDate,
             onDismiss = {
                 showAddToEventDialog = false
                 showAddToEventDialogForPicked = null
@@ -531,87 +551,6 @@ fun PhotosTimelineScreen(
                     }
                 }
 
-                // Suggested Events Card on Photos Timeline
-                if (suggestedEvents.isNotEmpty() && !viewModel.isSuggestedEventsDismissed && !viewModel.isSelectionMode) {
-                    val firstSuggested = suggestedEvents.first()
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Suggested Event • ${firstSuggested.dateString}",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                IconButton(
-                                    onClick = { viewModel.dismissSuggestedEvents() },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Dismiss",
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Create event from these ${firstSuggested.photoCount} untagged photos?",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                firstSuggested.sampleUris.take(4).forEach { uri ->
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(context)
-                                            .data(uri)
-                                            .size(150, 150)
-                                            .build(),
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .size(50.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = {
-                                    suggestedEventToCreate = firstSuggested
-                                },
-                                shape = RoundedCornerShape(20.dp),
-                                modifier = Modifier.align(Alignment.End)
-                            ) {
-                                Text("Create Event")
-                            }
-                        }
-                    }
-                }
-
                 // Check Paging State: Error State with Retry
                 val refreshState = timelineItems.loadState.refresh
                 if (refreshState is LoadState.Error) {
@@ -767,10 +706,99 @@ fun PhotosTimelineScreen(
                         state = gridState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
-                            top = innerPadding.calculateTopPadding(),
-                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 90.dp
+                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+                                FloatingPillNavigationBarHeight + 36.dp
                         )
                     ) {
+                        if (
+                            suggestedEvents.isNotEmpty() &&
+                            !viewModel.isSelectionMode &&
+                            photoAccessState != PhotoAccessState.DENIED
+                        ) {
+                            val firstSuggested = suggestedEvents.first()
+                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                                    ),
+                                    shape = RoundedCornerShape(16.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Suggested Event • ${firstSuggested.dateString}",
+                                                modifier = Modifier.weight(1f),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                            IconButton(
+                                                onClick = {
+                                                    viewModel.dismissSuggestedEvent(firstSuggested.id)
+                                                },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Dismiss suggested event",
+                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "Create event from these ${firstSuggested.photoCount} untagged photos?",
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            firstSuggested.sampleUris.take(4).forEach { uri ->
+                                                AsyncImage(
+                                                    model = ImageRequest.Builder(context)
+                                                        .data(uri)
+                                                        .size(150, 150)
+                                                        .build(),
+                                                    contentDescription = null,
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier
+                                                        .size(50.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Button(
+                                            onClick = {
+                                                suggestedEventToCreate = firstSuggested
+                                            },
+                                            shape = RoundedCornerShape(20.dp),
+                                            modifier = Modifier.align(Alignment.End)
+                                        ) {
+                                            Text("Create Event")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         items(
                             count = timelineItems.itemCount,
                             key = { index ->
@@ -807,7 +835,7 @@ fun PhotosTimelineScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
+                                            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
@@ -884,7 +912,7 @@ fun PhotosTimelineScreen(
                 exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 96.dp)
+                    .padding(bottom = 112.dp)
             ) {
                 Box(
                     modifier = Modifier

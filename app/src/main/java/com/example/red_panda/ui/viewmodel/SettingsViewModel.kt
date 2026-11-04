@@ -30,13 +30,6 @@ class SettingsViewModel(
         }
     }
 
-    fun cleanupMissingPhotos(context: Context, onComplete: (Int) -> Unit) {
-        viewModelScope.launch {
-            val removedCount = galleryRepository?.cleanupMissingPhotos(context) ?: 0
-            onComplete(removedCount)
-        }
-    }
-
     fun exportBackup(context: Context, uri: android.net.Uri, onResult: (Boolean, String) -> Unit) {
         viewModelScope.launch {
             try {

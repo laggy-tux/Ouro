@@ -12,8 +12,10 @@ import com.example.red_panda.data.local.entity.PhotoRefEntity
 import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.EventMock
 import com.example.red_panda.ui.model.SuggestedEvent
+import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -362,7 +364,7 @@ class GalleryRepositoryImpl(
     override suspend fun exportBackupJson(): String = withContext(Dispatchers.IO) {
         val root = org.json.JSONObject()
         root.put("version", 1)
-        root.put("app", "RedPanda")
+        root.put("app", "Ouro")
         root.put("exportedAt", System.currentTimeMillis())
 
         val categoriesJson = org.json.JSONArray()
@@ -519,9 +521,11 @@ class GalleryRepositoryImpl(
     override suspend fun getSuggestedEvents(context: Context): List<SuggestedEvent> =
         withContext(Dispatchers.IO) {
             val taggedUris = photoDao.getAllTaggedPhotoUris().toSet()
+            val dismissedIds = context.dataStore.data.first()[DISMISSED_SUGGESTION_IDS].orEmpty()
             val suggested = MediaStoreHelper.getSuggestedEvents(context, taggedUris)
-            suggested.map { item ->
+            suggested.filterNot { it.id in dismissedIds }.map { item ->
                 SuggestedEvent(
+                    id = item.id,
                     dateString = item.dateString,
                     photoCount = item.photos.size,
                     sampleUris = item.photos.take(4).map { it.contentUri },
@@ -529,6 +533,13 @@ class GalleryRepositoryImpl(
                 )
             }
         }
+
+    override suspend fun dismissSuggestedEvent(context: Context, suggestionId: String) {
+        context.dataStore.edit { preferences ->
+            preferences[DISMISSED_SUGGESTION_IDS] =
+                preferences[DISMISSED_SUGGESTION_IDS].orEmpty() + suggestionId
+        }
+    }
 
     override suspend fun createEventFromSuggested(
         categoryId: Long,

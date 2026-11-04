@@ -35,6 +35,13 @@ class HomeViewModel(
         }
     }
 
+    fun dismissSuggestedEvent(context: android.content.Context, suggestionId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.dismissSuggestedEvent(context, suggestionId)
+            _suggestedEvents.value = repository.getSuggestedEvents(context)
+        }
+    }
+
     fun createEventFromSuggested(
         context: android.content.Context,
         categoryId: Long,
