@@ -34,6 +34,6 @@ A prebuilt debug APK is at `APKs/ouro-1.0.0.apk`.
 In active development. Still to do: stress testing on 5,000+ item libraries, a full device-size test matrix, and the Web Viewer (currently a disabled placeholder in Settings). Design notes are in `assets/phase-*.md`.
 
 ## Credits 
-**Base UI/UX of app :** (Crank from dribble)[https://dribbble.com/crankwh]
+**Base UI/UX of app :** [Crank from dribble](https://dribbble.com/crankwh)
 
 **Agents used :** Claude (for phase divisions and code verifications), gemini 3.6 flash and github copilot (for writing code and summary.md)
