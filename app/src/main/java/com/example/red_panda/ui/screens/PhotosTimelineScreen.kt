@@ -45,7 +45,6 @@ import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import coil.size.Scale
 import androidx.compose.ui.graphics.luminance
 import com.example.red_panda.data.local.LocalPhotoItem
 import com.example.red_panda.data.local.MediaStoreHelper
@@ -151,6 +150,9 @@ fun PhotosTimelineScreen(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
         if (uris.isNotEmpty()) {
+            uris.forEach { uri ->
+                MediaStoreHelper.persistMediaReadPermission(context, uri)
+            }
             val uriStrings = uris.map { it.toString() }
             viewModel.selectAllPhotos(uriStrings)
         }
@@ -394,7 +396,7 @@ fun PhotosTimelineScreen(
                                     onClick = {
                                         showMoreMenu = false
                                         systemPickerLauncher.launch(
-                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                                         )
                                     }
                                 )
@@ -467,7 +469,7 @@ fun PhotosTimelineScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = "Only selected photos are visible.",
+                                    text = "Only selected photos and videos are visible.",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                                 )
@@ -477,10 +479,14 @@ fun PhotosTimelineScreen(
                                     val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                                         arrayOf(
                                             Manifest.permission.READ_MEDIA_IMAGES,
+                                            Manifest.permission.READ_MEDIA_VIDEO,
                                             Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
                                         )
                                     } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                        arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+                                        arrayOf(
+                                            Manifest.permission.READ_MEDIA_IMAGES,
+                                            Manifest.permission.READ_MEDIA_VIDEO
+                                        )
                                     } else {
                                         arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
                                     }
@@ -522,7 +528,7 @@ fun PhotosTimelineScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Ouro needs permission to read device photos for your timeline.",
+                                text = "Ouro needs permission to read device photos and videos for your timeline.",
                                 fontSize = 13.sp,
                                 textAlign = TextAlign.Center,
                                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f)
@@ -533,10 +539,12 @@ fun PhotosTimelineScreen(
                                     val permissions = when {
                                         Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
                                             Manifest.permission.READ_MEDIA_IMAGES,
+                                            Manifest.permission.READ_MEDIA_VIDEO,
                                             Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
                                         )
                                         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(
-                                            Manifest.permission.READ_MEDIA_IMAGES
+                                            Manifest.permission.READ_MEDIA_IMAGES,
+                                            Manifest.permission.READ_MEDIA_VIDEO
                                         )
                                         else -> arrayOf(
                                             Manifest.permission.READ_EXTERNAL_STORAGE
@@ -686,7 +694,7 @@ fun PhotosTimelineScreen(
                                     Button(
                                         onClick = {
                                             systemPickerLauncher.launch(
-                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                                             )
                                         },
                                         shape = RoundedCornerShape(20.dp)
@@ -981,6 +989,12 @@ fun PhotosTimelineScreen(
                 .filterIsInstance<TimelineItem.Photo>()
                 .map { it.photo.contentUri }
         }
+        val videoUris = remember(loadedTimelineItems) {
+            loadedTimelineItems
+                .filterIsInstance<TimelineItem.Photo>()
+                .filter { it.photo.isVideo }
+                .mapTo(mutableSetOf()) { it.photo.contentUri }
+        }
 
         val photoIndex = remember(selectedPhotoIndex, loadedTimelineItems) {
             loadedTimelineItems
@@ -994,6 +1008,7 @@ fun PhotosTimelineScreen(
                 photoUris = photoUris,
                 initialIndex = photoIndex,
                 favoriteUris = favoriteUris,
+                videoUris = videoUris,
                 onDismiss = { selectedPhotoIndex = -1 },
                 onToggleFavorite = { page ->
                     val uri = photoUris.getOrNull(page)
@@ -1022,16 +1037,6 @@ private fun PhotoGridTile(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val context = LocalContext.current
-    val imageRequest = remember(photo.contentUri) {
-        ImageRequest.Builder(context)
-            .data(photo.contentUri)
-            .size(300, 300)
-            .scale(Scale.FILL)
-            .crossfade(true)
-            .build()
-    }
-
     Box(
         modifier = Modifier
             .aspectRatio(1f)
@@ -1042,12 +1047,30 @@ private fun PhotoGridTile(
                 onLongClick = onLongClick
             )
     ) {
-        AsyncImage(
-            model = imageRequest,
-            contentDescription = "Photo taken on ${photo.dateString}",
+        GalleryMediaThumbnail(
+            uri = photo.contentUri,
+            isVideo = photo.isVideo,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            contentDescription = "${if (photo.isVideo) "Video" else "Photo"} from ${photo.dateString}"
         )
+
+        if (photo.isVideo) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(6.dp)
+                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                    .padding(4.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = "Video",
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
 
         // Dim overlay if selected
         if (isSelected) {

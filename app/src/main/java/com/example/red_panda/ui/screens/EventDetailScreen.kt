@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -63,9 +64,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.example.red_panda.ui.components.ConfirmDeleteDialog
+import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.ui.viewmodel.EventDetailViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,6 +76,7 @@ fun EventDetailScreen(
 ) {
     val eventState by viewModel.event.collectAsState()
     val event = eventState
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel) {
@@ -93,6 +94,7 @@ fun EventDetailScreen(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
+        uris.forEach { uri -> MediaStoreHelper.persistMediaReadPermission(context, uri) }
             val uriStrings = uris.map { it.toString() }
             viewModel.addPhotos(uriStrings)
         }
@@ -174,12 +176,12 @@ fun EventDetailScreen(
                                 tonalElevation = 0.dp
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Add Photos") },
+                                    text = { Text("Add Photos or Videos") },
                                     leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
                                     onClick = {
                                         showMenu = false
                                         photoPickerLauncher.launch(
-                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                                         )
                                     }
                                 )
@@ -203,13 +205,13 @@ fun EventDetailScreen(
                 FloatingActionButton(
                     onClick = {
                         photoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                         )
                     },
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Photos")
+                    Icon(Icons.Default.Add, contentDescription = "Add Photos or Videos")
                 }
             },
             containerColor = MaterialTheme.colorScheme.background
@@ -251,14 +253,14 @@ fun EventDetailScreen(
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = "No Photos Yet",
+                                text = "No Media Yet",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Tap below to import photos from your device gallery.",
+                                text = "Tap below to import photos or videos from your device gallery.",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -266,14 +268,14 @@ fun EventDetailScreen(
                             Button(
                                 onClick = {
                                     photoPickerLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                                     )
                                 },
                                 shape = RoundedCornerShape(20.dp)
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add Photos")
+                                Text("Add Photos or Videos")
                             }
                         }
                     }
@@ -284,6 +286,9 @@ fun EventDetailScreen(
                         contentPadding = PaddingValues(6.dp)
                     ) {
                         itemsIndexed(photos) { index, photoUri ->
+                            val isVideo = remember(photoUri) {
+                                context.contentResolver.getType(Uri.parse(photoUri))?.startsWith("video/") == true
+                            }
                             Box(
                                 modifier = Modifier
                                     .aspectRatio(1f)
@@ -295,15 +300,27 @@ fun EventDetailScreen(
                                         showViewer = true
                                     }
                             ) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
-                                        .data(photoUri)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = "Photo ${index + 1}",
+                                GalleryMediaThumbnail(
+                                    uri = photoUri,
+                                    isVideo = isVideo,
                                     contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentDescription = "${if (isVideo) "Video" else "Photo"} ${index + 1}"
                                 )
+                                if (isVideo) {
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Play video",
+                                        tint = Color.White,
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .padding(8.dp)
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.Black.copy(alpha = 0.65f))
+                                            .padding(4.dp)
+                                    )
+                                }
                             }
                         }
                     }

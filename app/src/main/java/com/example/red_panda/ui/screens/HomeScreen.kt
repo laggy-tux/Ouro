@@ -87,10 +87,12 @@ fun HomeScreen(
     val permissionsToRequest = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
             Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VIDEO,
             Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
         )
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(
-            Manifest.permission.READ_MEDIA_IMAGES
+            Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VIDEO
         )
         else -> arrayOf(
             Manifest.permission.READ_EXTERNAL_STORAGE
@@ -350,7 +352,7 @@ fun HomeScreen(
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "Ouro has access to selected photos only. Some photos or suggested events may not appear.",
+                                        text = "Ouro has access to selected photos and videos only. Some media or suggestions may not appear.",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                                     )
@@ -400,7 +402,7 @@ fun HomeScreen(
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "Grant permission to organize device photos and suggest events.",
+                                            text = "Grant permission to organize device photos and videos and suggest events.",
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
                                         )
@@ -634,7 +636,7 @@ fun AlbumCard(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "${album.photoCount} Photos",
+                text = "${album.photoCount} Items",
                 fontSize = 12.sp,
                 color = if (hasCover) Color.White.copy(alpha = 0.8f)
                 else MaterialTheme.colorScheme.onSurfaceVariant

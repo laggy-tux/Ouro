@@ -41,7 +41,7 @@ class RedPandaApplication : Application() {
             }
         }.also { observer ->
             contentResolver.registerContentObserver(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                MediaStore.Files.getContentUri("external"),
                 true,
                 observer
             )

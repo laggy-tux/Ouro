@@ -37,7 +37,7 @@ class MediaStorePagingSource(
         }
         contentObserver = observer
         context.contentResolver.registerContentObserver(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            MediaStore.Files.getContentUri("external"),
             true,
             observer
         )
@@ -59,74 +59,21 @@ class MediaStorePagingSource(
         val offset = params.key ?: 0
         val loadSize = params.loadSize
 
-        val photos = mutableListOf<LocalPhotoItem>()
-        val projection = arrayOf(
-            MediaStore.Images.Media._ID,
-            MediaStore.Images.Media.DATE_TAKEN,
-            MediaStore.Images.Media.DATE_ADDED,
-            MediaStore.Images.Media.WIDTH,
-            MediaStore.Images.Media.HEIGHT
-        )
-
         try {
-            val queryArgs = Bundle().apply {
-                putInt(ContentResolver.QUERY_ARG_LIMIT, loadSize)
-                putInt(ContentResolver.QUERY_ARG_OFFSET, offset)
-                putString(
-                    ContentResolver.QUERY_ARG_SQL_SORT_ORDER,
-                    "CASE WHEN ${MediaStore.Images.Media.DATE_TAKEN} > 0 " +
-                        "THEN ${MediaStore.Images.Media.DATE_TAKEN} " +
-                        "ELSE ${MediaStore.Images.Media.DATE_ADDED} * 1000 END DESC, " +
-                        "${MediaStore.Images.Media._ID} DESC"
-                )
-            }
-            val cursor = context.contentResolver.query(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                projection,
-                queryArgs,
-                null
+            val queryCount = offset + loadSize
+            val images = queryMedia(
+                collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                queryCount = queryCount,
+                isVideo = false
             )
-
-            requireNotNull(cursor) { "MediaStore returned no cursor while loading photos." }.use { c ->
-                val idColumn = c.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-                val dateTakenColumn = c.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN)
-                val dateAddedColumn = c.getColumnIndex(MediaStore.Images.Media.DATE_ADDED)
-                val widthColumn = c.getColumnIndex(MediaStore.Images.Media.WIDTH)
-                val heightColumn = c.getColumnIndex(MediaStore.Images.Media.HEIGHT)
-
-                while (c.moveToNext()) {
-                    val id = c.getLong(idColumn)
-                    var dateTaken = if (dateTakenColumn >= 0) c.getLong(dateTakenColumn) else 0L
-                    if (dateTaken <= 0) {
-                        val dateAdded = if (dateAddedColumn >= 0) c.getLong(dateAddedColumn) else 0L
-                        dateTaken = dateAdded * 1000L
-                    }
-                    if (dateTaken <= 0) {
-                        dateTaken = System.currentTimeMillis()
-                    }
-
-                    val width = if (widthColumn >= 0) c.getInt(widthColumn) else 0
-                    val height = if (heightColumn >= 0) c.getInt(heightColumn) else 0
-
-                    val uri = ContentUris.withAppendedId(
-                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                        id
-                    ).toString()
-
-                    val dateString = formatDate(dateTaken)
-
-                    photos.add(
-                        LocalPhotoItem(
-                            id = id,
-                            contentUri = uri,
-                            takenAt = dateTaken,
-                            dateString = dateString,
-                            width = width,
-                            height = height
-                        )
-                    )
-                }
-            }
+            val videos = queryMedia(
+                collection = MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                queryCount = queryCount,
+                isVideo = true
+            )
+            val media = (images + videos)
+                .sortedWith(compareByDescending<LocalPhotoItem> { it.takenAt }.thenByDescending { it.id })
+            val photos = media.drop(offset).take(loadSize)
 
             val filteredPhotos = when {
                 filterFavoritesOnly -> photos.filter { it.contentUri in favoritePhotoUris }
@@ -134,7 +81,7 @@ class MediaStorePagingSource(
                 else -> photos
             }
 
-            val nextKey = if (photos.size < loadSize) null else offset + photos.size
+            val nextKey = if (media.size < queryCount) null else offset + photos.size
             val prevKey = if (offset == 0) null else (offset - pageSize).coerceAtLeast(0)
 
             return LoadResult.Page(
@@ -146,6 +93,62 @@ class MediaStorePagingSource(
             throw e
         } catch (e: Exception) {
             return LoadResult.Error(e)
+        }
+    }
+
+    private fun queryMedia(
+        collection: android.net.Uri,
+        queryCount: Int,
+        isVideo: Boolean
+    ): List<LocalPhotoItem> {
+        val projection = arrayOf(
+            MediaStore.MediaColumns._ID,
+            MediaStore.MediaColumns.DATE_TAKEN,
+            MediaStore.MediaColumns.DATE_ADDED,
+            MediaStore.MediaColumns.WIDTH,
+            MediaStore.MediaColumns.HEIGHT
+        )
+        val queryArgs = Bundle().apply {
+            putInt(ContentResolver.QUERY_ARG_LIMIT, queryCount)
+            putInt(ContentResolver.QUERY_ARG_OFFSET, 0)
+            putString(
+                ContentResolver.QUERY_ARG_SQL_SORT_ORDER,
+                "CASE WHEN ${MediaStore.MediaColumns.DATE_TAKEN} > 0 " +
+                    "THEN ${MediaStore.MediaColumns.DATE_TAKEN} " +
+                    "ELSE ${MediaStore.MediaColumns.DATE_ADDED} * 1000 END DESC, " +
+                    "${MediaStore.MediaColumns._ID} DESC"
+            )
+        }
+        val cursor = context.contentResolver.query(collection, projection, queryArgs, null)
+            ?: error("MediaStore returned no cursor while loading ${if (isVideo) "videos" else "images"}.")
+
+        return cursor.use { c ->
+            val idColumn = c.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+            val dateTakenColumn = c.getColumnIndex(MediaStore.MediaColumns.DATE_TAKEN)
+            val dateAddedColumn = c.getColumnIndex(MediaStore.MediaColumns.DATE_ADDED)
+            val widthColumn = c.getColumnIndex(MediaStore.MediaColumns.WIDTH)
+            val heightColumn = c.getColumnIndex(MediaStore.MediaColumns.HEIGHT)
+            buildList {
+                while (c.moveToNext()) {
+                    val id = c.getLong(idColumn)
+                    val dateTaken = (if (dateTakenColumn >= 0) c.getLong(dateTakenColumn) else 0L)
+                        .takeIf { it > 0L }
+                        ?: ((if (dateAddedColumn >= 0) c.getLong(dateAddedColumn) else 0L) * 1000L)
+                    val takenAt = dateTaken.takeIf { it > 0L } ?: System.currentTimeMillis()
+                    val uri = ContentUris.withAppendedId(collection, id).toString()
+                    add(
+                        LocalPhotoItem(
+                            id = id,
+                            contentUri = uri,
+                            takenAt = takenAt,
+                            dateString = formatDate(takenAt),
+                            width = if (widthColumn >= 0) c.getInt(widthColumn) else 0,
+                            height = if (heightColumn >= 0) c.getInt(heightColumn) else 0,
+                            isVideo = isVideo
+                        )
+                    )
+                }
+            }
         }
     }
 

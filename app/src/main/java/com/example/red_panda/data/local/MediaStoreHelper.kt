@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Log
 import androidx.core.content.ContextCompat
 import java.security.MessageDigest
 import java.time.Instant
@@ -26,7 +27,8 @@ data class LocalPhotoItem(
     val takenAt: Long,
     val dateString: String,
     val width: Int = 0,
-    val height: Int = 0
+    val height: Int = 0,
+    val isVideo: Boolean = false
 )
 
 data class SuggestedEventItem(
@@ -37,6 +39,17 @@ data class SuggestedEventItem(
 )
 
 object MediaStoreHelper {
+    fun persistMediaReadPermission(context: Context, uri: Uri) {
+        try {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (exception: SecurityException) {
+            Log.w(TAG, "The selected media URI did not grant persistent read access: $uri", exception)
+        }
+    }
+
 
     fun getPhotoAccessState(context: Context): PhotoAccessState {
         return when {
@@ -44,7 +57,11 @@ object MediaStoreHelper {
                 val fullGranted = ContextCompat.checkSelfPermission(
                     context,
                     Manifest.permission.READ_MEDIA_IMAGES
-                ) == PackageManager.PERMISSION_GRANTED
+                ) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.READ_MEDIA_VIDEO
+                    ) == PackageManager.PERMISSION_GRANTED
 
                 val partialGranted = ContextCompat.checkSelfPermission(
                     context,
@@ -59,7 +76,11 @@ object MediaStoreHelper {
                 val fullGranted = ContextCompat.checkSelfPermission(
                     context,
                     Manifest.permission.READ_MEDIA_IMAGES
-                ) == PackageManager.PERMISSION_GRANTED
+                ) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.READ_MEDIA_VIDEO
+                    ) == PackageManager.PERMISSION_GRANTED
 
                 if (fullGranted) PhotoAccessState.FULL else PhotoAccessState.DENIED
             }
@@ -106,11 +127,32 @@ object MediaStoreHelper {
 
     fun reResolvePhotoByHash(context: Context, targetHash: String): String? {
         if (targetHash.isBlank()) return null
-        val currentPhotos = fetchAllMediaStorePhotos(context)
-        for (photo in currentPhotos) {
-            val hash = calculateContentHash(context, photo.contentUri)
+        val currentMediaUris = fetchAllMediaStorePhotos(context).map { it.contentUri } +
+            buildList {
+                val cursor = context.contentResolver.query(
+                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                    arrayOf(MediaStore.Video.Media._ID),
+                    null,
+                    null,
+                    null
+                )
+                requireNotNull(cursor) { "MediaStore returned no cursor while resolving video references." }
+                    .use { videoCursor ->
+                        val idColumn = videoCursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+                        while (videoCursor.moveToNext()) {
+                            add(
+                                ContentUris.withAppendedId(
+                                    MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                                    videoCursor.getLong(idColumn)
+                                ).toString()
+                            )
+                        }
+                    }
+            }
+        for (mediaUri in currentMediaUris) {
+            val hash = calculateContentHash(context, mediaUri)
             if (hash == targetHash && hash.isNotBlank()) {
-                return photo.contentUri
+                return mediaUri
             }
         }
         return null
@@ -256,4 +298,6 @@ object MediaStoreHelper {
             } else null
         }.sortedByDescending { it.dateMillis }
     }
+
+    private const val TAG = "MediaStoreHelper"
 }

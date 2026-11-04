@@ -1,5 +1,8 @@
 package com.example.red_panda.ui.screens
 
+import android.net.Uri
+import android.widget.MediaController
+import android.widget.VideoView
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -52,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
@@ -213,7 +217,7 @@ fun DetailScreen(
     eventToDelete?.let { event ->
         ConfirmDeleteDialog(
             title = "Delete Event",
-            message = "Are you sure you want to delete '${event.title}'? Attached photos will remain on your device.",
+            message = "Are you sure you want to delete '${event.title}'? Attached media will remain on your device.",
             onDismiss = { eventToDelete = null },
             onConfirm = {
                 viewModel.deleteEvent(event.id)
@@ -318,7 +322,7 @@ fun DetailScreen(
                                     text = if (selectedPlaceFilter != "Places" || selectedPeopleFilter != "People")
                                         "Try clearing the active place or people filters."
                                     else
-                                        "Create an event to group photos by date, location, and memories.",
+                                        "Create an event to group photos and videos by date, location, and memories.",
                                     fontSize = 13.sp,
                                     textAlign = TextAlign.Center,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -377,6 +381,12 @@ fun HeroHeader(
     onDeleteCategory: () -> Unit,
     onCreateEvent: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coverIsVideo = remember(coverPhotoUri) {
+        coverPhotoUri?.let {
+            context.contentResolver.getType(Uri.parse(it))?.startsWith("video/") == true
+        } ?: false
+    }
     val headerHeight = 280.dp
     var showMenu by remember { mutableStateOf(false) }
 
@@ -388,12 +398,9 @@ fun HeroHeader(
             .background(Color(coverColor))
     ) {
         if (!coverPhotoUri.isNullOrBlank()) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(coverPhotoUri)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = title,
+            GalleryMediaThumbnail(
+                uri = coverPhotoUri,
+                isVideo = coverIsVideo,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
@@ -531,7 +538,7 @@ fun HeroHeader(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "$photoCount Photos",
+                text = "$photoCount Items",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = Color.White.copy(alpha = 0.9f)
@@ -913,6 +920,12 @@ fun MosaicTile(
     modifier: Modifier = Modifier,
     remainingCount: Int = 0
 ) {
+    val context = LocalContext.current
+    val isVideo = remember(uri) {
+        uri?.let {
+            context.contentResolver.getType(Uri.parse(it))?.startsWith("video/") == true
+        } ?: false
+    }
     val isPlaceholder = uri.isNullOrBlank()
     Box(
         modifier = modifier
@@ -925,14 +938,24 @@ fun MosaicTile(
         contentAlignment = Alignment.Center
     ) {
         if (!uri.isNullOrBlank()) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(uri)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
+            GalleryMediaThumbnail(
+                uri = uri,
+                isVideo = isVideo,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        if (isVideo) {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = "Video",
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(4.dp)
+                    .size(20.dp)
+                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
             )
         }
 
@@ -968,8 +991,12 @@ fun AlbumSlideshowViewer(
     val pagerState = rememberPagerState(pageCount = { photoUris.size })
     val coroutineScope = rememberCoroutineScope()
 
-    LaunchedEffect(isPlaying, photoUris) {
-        while (isPlaying) {
+    val context = LocalContext.current
+
+    LaunchedEffect(isPlaying, photoUris, pagerState.currentPage) {
+        val currentUri = photoUris[pagerState.currentPage]
+        val isVideo = context.contentResolver.getType(Uri.parse(currentUri))?.startsWith("video/") == true
+        if (isPlaying && !isVideo) {
             kotlinx.coroutines.delay(3000L)
             pagerState.animateScrollToPage((pagerState.currentPage + 1) % photoUris.size)
         }
@@ -981,23 +1008,56 @@ fun AlbumSlideshowViewer(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable { isPlaying = !isPlaying }
     ) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(photoUris[page])
-                    .crossfade(true)
-                    .build(),
-                contentDescription = "Slideshow photo ${page + 1}",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { isPlaying = !isPlaying }
-            )
+            val mediaUri = photoUris[page]
+            val isVideo = remember(mediaUri) {
+                context.contentResolver.getType(Uri.parse(mediaUri))?.startsWith("video/") == true
+            }
+            val isActiveVideo = pagerState.currentPage == page
+            if (isVideo) {
+                AndroidView(
+                    factory = { viewContext ->
+                        VideoView(viewContext).apply {
+                            tag = mediaUri
+                            val controller = MediaController(viewContext)
+                            controller.setAnchorView(this)
+                            setMediaController(controller)
+                            setVideoURI(Uri.parse(mediaUri))
+                            setOnPreparedListener { if (isActiveVideo) it.start() }
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    update = { videoView ->
+                        if (videoView.tag != mediaUri) {
+                            videoView.tag = mediaUri
+                            videoView.setVideoURI(Uri.parse(mediaUri))
+                            videoView.setOnPreparedListener { if (isActiveVideo) it.start() }
+                        }
+                        if (isActiveVideo && !videoView.isPlaying) {
+                            videoView.start()
+                        } else if (!isActiveVideo && videoView.isPlaying) {
+                            videoView.pause()
+                        }
+                    },
+                    onRelease = { it.stopPlayback() }
+                )
+            } else {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(mediaUri)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Photo ${page + 1}",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { isPlaying = !isPlaying }
+                )
+            }
         }
 
         // Top bar

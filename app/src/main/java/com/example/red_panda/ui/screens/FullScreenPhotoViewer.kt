@@ -1,5 +1,8 @@
 package com.example.red_panda.ui.screens
 
+import android.net.Uri
+import android.widget.MediaController
+import android.widget.VideoView
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -43,6 +46,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.red_panda.ui.theme.HeartRed
@@ -53,6 +57,7 @@ fun FullScreenPhotoViewer(
     initialIndex: Int = 0,
     isFavorite: Boolean = false,
     favoriteUris: Set<String> = emptySet(),
+    videoUris: Set<String> = emptySet(),
     onDismiss: () -> Unit,
     onToggleFavorite: (Int) -> Unit = {},
     onRemovePhoto: (Int) -> Unit = {}
@@ -87,63 +92,105 @@ fun FullScreenPhotoViewer(
             reverseLayout = false,
             userScrollEnabled = true
         ) { page ->
+            val context = LocalContext.current
+            val mediaUri = photoUris[page]
+            val isVideo = remember(mediaUri, videoUris) {
+                mediaUri in videoUris ||
+                    runCatching {
+                        context.contentResolver.getType(Uri.parse(mediaUri))?.startsWith("video/") == true
+                    }.getOrDefault(false)
+            }
             var scale by remember { mutableFloatStateOf(1f) }
             var offset by remember { mutableStateOf(Offset.Zero) }
+            val isActiveVideo = pagerState.currentPage == page
 
             LaunchedEffect(pagerState.currentPage) {
                 scale = 1f
                 offset = Offset.Zero
             }
 
-            val transformableState = rememberTransformableState { zoomChange, offsetChange, _ ->
-                scale = (scale * zoomChange).coerceIn(1f, 4f)
-                if (scale > 1f) {
-                    offset += offsetChange
-                } else {
-                    offset = Offset.Zero
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { showControls = !showControls },
-                            onDoubleTap = {
-                                if (scale > 1f) {
-                                    scale = 1f
-                                    offset = Offset.Zero
-                                } else {
-                                    scale = 2.5f
-                                }
+            if (isVideo) {
+                AndroidView(
+                    factory = { viewContext ->
+                        VideoView(viewContext).apply {
+                            tag = mediaUri
+                            val controller = MediaController(viewContext)
+                            controller.setAnchorView(this)
+                            setMediaController(controller)
+                            setVideoURI(Uri.parse(mediaUri))
+                            setOnPreparedListener { player ->
+                                if (isActiveVideo) player.start()
                             }
-                        )
-                    }
-                    .transformable(
-                        state = transformableState,
-                        canPan = { scale > 1f }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(photoUris[page])
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "Photo ${page + 1} of ${photoUris.size}",
-                    alignment = Alignment.Center,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.Center)
-                        .graphicsLayer(
-                            scaleX = scale,
-                            scaleY = scale,
-                            translationX = offset.x,
-                            translationY = offset.y
-                        )
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    update = { videoView ->
+                        if (videoView.tag != mediaUri) {
+                            videoView.tag = mediaUri
+                            videoView.setVideoURI(Uri.parse(mediaUri))
+                            videoView.setOnPreparedListener { player ->
+                                if (isActiveVideo) player.start()
+                            }
+                        }
+                        if (isActiveVideo && !videoView.isPlaying) {
+                            videoView.start()
+                        } else if (!isActiveVideo && videoView.isPlaying) {
+                            videoView.pause()
+                        }
+                    },
+                    onRelease = { it.stopPlayback() }
                 )
+            } else {
+                val transformableState = rememberTransformableState { zoomChange, offsetChange, _ ->
+                    scale = (scale * zoomChange).coerceIn(1f, 4f)
+                    if (scale > 1f) {
+                        offset += offsetChange
+                    } else {
+                        offset = Offset.Zero
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onTap = { showControls = !showControls },
+                                onDoubleTap = {
+                                    if (scale > 1f) {
+                                        scale = 1f
+                                        offset = Offset.Zero
+                                    } else {
+                                        scale = 2.5f
+                                    }
+                                }
+                            )
+                        }
+                        .transformable(
+                            state = transformableState,
+                            canPan = { scale > 1f }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(mediaUri)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Photo ${page + 1} of ${photoUris.size}",
+                        alignment = Alignment.Center,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.Center)
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offset.x,
+                                translationY = offset.y
+                            )
+                    )
+                }
             }
         }
 
@@ -198,7 +245,7 @@ fun FullScreenPhotoViewer(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "Remove photo",
+                            contentDescription = "Remove media",
                             tint = Color.White
                         )
                     }

@@ -355,10 +355,13 @@ Red-panda/
   * New events created from selected photos now default to the latest available photo capture date from MediaStore metadata (`DATE_TAKEN`, with `DATE_ADDED` as fallback) rather than today. If no usable date is available, the field stays blank and requires manual selection.
   * Reconciles missing photo references on app start and after MediaStore changes when full photo access is available; removed the manual cleanup button. Current-year timeline headers omit the year, and Coil retains its EXIF-aware decoding for MediaStore images.
   * Changed the installed application ID to `com.yahshua.ouro`, while retaining `com.example.red_panda` as the Kotlin source namespace; updated the instrumented-test package expectation accordingly. Rebuilt the debug APK as `APKs/ouro-1.0.0.apk`.
+  * Added videos to the Photos timeline by paging images and videos together from MediaStore, sorted by capture date. Video tiles show generated frame thumbnails and a play badge; image and video permissions are requested together on supported Android versions.
+  * Updated Photo Picker flows to select both images and videos when importing to the timeline or attaching to an event. Persisted picker URI read access so selected media remains available to albums after the picker session.
+  * Reused album/event media references for video attachments without a database schema change. Event grids and album mosaics display video thumbnails; full-screen photo viewing and album slideshows now play videos with native playback controls, and album autoplay pauses on video pages. Missing-media hash recovery now checks video items too.
 * **How it was executed:**
   * Applied shared route transitions to each NavHost destination and adjusted the Android back callback setting for matching Back behavior.
   * Centralized suggestion IDs and dismissed-ID persistence in the existing repository/DataStore path, then wired both screens to the shared active suggestion list.
-  * Updated the album slideshow to use a horizontal pager, added zoom-aware gesture handling to the full-screen pager, and queried selected-photo date metadata before initializing the Add to Event dialog.
-  * Validation: `app:assembleDebug` succeeded after the animation, swipe, layout, and photo-metadata-date changes. Earlier Phase 16 validation also included `app:testDebugUnitTest` (1 unit test passed).
+  * Updated the album slideshow to use a horizontal pager, added zoom-aware gesture handling to the full-screen pager, and queried selected-media date metadata before initializing the Add to Event dialog. Added generated video thumbnails and native VideoView playback to the timeline, event, and slideshow viewers.
+  * Validation: `app:assembleDebug` and `app:testDebugUnitTest` succeeded after the video support changes (1 unit test passed).
 * **Why it was executed:**
   * To make navigation and photo browsing feel consistent, improve the placement and appearance of gallery controls, simplify album creation, keep branding consistent, and ensure event dates reflect when selected photos were captured.
