@@ -48,23 +48,6 @@ Ouro scans untagged media, clusters it by capture date, and suggests events you 
 
 ---
 
-## Architecture
-
-MVVM with a repository layer:
-
-```
-UI (Compose screens, dialogs)
-   └─ ViewModels (StateFlow)
-        └─ Repositories (GalleryRepository, SettingsRepository)
-             ├─ Room (categories, events, photo refs, event-photo links)
-             ├─ DataStore (theme, layout, dismissed suggestions)
-             └─ MediaStore / Paging 3 (device photos and videos)
-```
-
-Photos are never stored by the app. Room keeps only references (URI, capture date, dimensions, content hash) plus the albums, events and ordering you create.
-
----
-
 ## Getting started
 
 ### Requirements
