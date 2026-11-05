@@ -45,8 +45,8 @@ fun MainShellScreen(
         AnimatedContent(
             targetState = currentTab,
             transitionSpec = {
-                fadeIn(animationSpec = tween(130)) togetherWith
-                    fadeOut(animationSpec = tween(130))
+                fadeIn(animationSpec = tween(100)) togetherWith
+                    fadeOut(animationSpec = tween(100))
             },
             label = "mainTab"
         ) { tab ->

@@ -50,7 +50,7 @@ sealed class Screen(val route: String) {
     }
 }
 
-private const val NAVIGATION_TRANSITION_MILLIS = 280
+private const val NAVIGATION_TRANSITION_MILLIS = 180
 private val forwardEnterTransition =
     slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(NAVIGATION_TRANSITION_MILLIS)) +
         fadeIn(animationSpec = tween(NAVIGATION_TRANSITION_MILLIS), initialAlpha = 0.98f)

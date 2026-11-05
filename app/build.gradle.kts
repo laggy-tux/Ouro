@@ -1,13 +1,7 @@
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
-}
-
-val releaseSigningProperties = Properties().apply {
-    rootProject.file("keystore.properties").inputStream().use(::load)
 }
 
 android {
@@ -26,24 +20,8 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = file(
-                releaseSigningProperties.getProperty("storeFile")
-                    ?: error("Missing storeFile in keystore.properties")
-            )
-            storePassword = releaseSigningProperties.getProperty("storePassword")
-                ?: error("Missing storePassword in keystore.properties")
-            keyAlias = releaseSigningProperties.getProperty("keyAlias")
-                ?: error("Missing keyAlias in keystore.properties")
-            keyPassword = releaseSigningProperties.getProperty("keyPassword")
-                ?: error("Missing keyPassword in keystore.properties")
-        }
-    }
-
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
