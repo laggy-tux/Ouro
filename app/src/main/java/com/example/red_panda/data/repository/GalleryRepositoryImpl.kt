@@ -318,6 +318,31 @@ class GalleryRepositoryImpl(
             coverChanged
         }
 
+    override suspend fun removePhotoReference(contentUri: String) =
+        withContext(Dispatchers.IO) {
+            val photo = photoDao.getPhotoByUri(contentUri) ?: return@withContext
+            val affectedEvents = eventDao.getAllEventsSync()
+                .filter { it.coverPhotoId == photo.id }
+            val affectedCategories = categoryDao.getAllCategoriesSync()
+                .filter { it.coverPhotoId == photo.id }
+
+            photoDao.deletePhotoById(photo.id)
+
+            affectedEvents.forEach { event ->
+                val fallback = photoDao.getPhotosForEventSync(event.id).firstOrNull()
+                eventDao.updateEvent(
+                    event.copy(coverPhotoId = fallback?.id, coverPhotoIsManual = false)
+                )
+            }
+            affectedCategories.forEach { category ->
+                val fallback = photoDao.getEarliestPhotoForCategorySync(category.id)
+                categoryDao.updateCategory(
+                    category.copy(coverPhotoId = fallback?.id, coverPhotoIsManual = false)
+                )
+            }
+            Unit
+        }
+
     override suspend fun togglePhotoFavorite(photoId: Long) =
         withContext(Dispatchers.IO) {
             val photo = photoDao.getPhotoByIdSync(photoId)

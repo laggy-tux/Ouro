@@ -40,6 +40,12 @@ class EventDetailViewModel(
         }
     }
 
+    fun togglePhotoFavorite(photoId: Long) {
+        viewModelScope.launch {
+            repository.togglePhotoFavorite(photoId)
+        }
+    }
+
     fun deleteEvent(onDeleted: () -> Unit) {
         viewModelScope.launch {
             repository.deleteEvent(eventId)

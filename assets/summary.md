@@ -384,3 +384,35 @@ Red-panda/
   * **Validation:** `:app:assembleDebug` succeeded, `:app:testDebugUnitTest` passed (1 unit test), and the updated screen was launched on the emulator.
 * **Why it was executed:**
   * To match the supplied Ouro gallery reference: a continuous, naturally proportioned photo/video wall with temporary date context during scrolling.
+
+---
+
+#### 🔹 Phase 17.5: Theme-Agnostic Liquid Glass Video Player UI
+* **What was executed:**
+  * Created [LiquidGlassVideoPlayer.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/components/LiquidGlassVideoPlayer.kt) implementing a theme-agnostic "Liquid Glass" floating video player UI matching the reference design.
+  * Styled the video player with a floating translucent dark glass card (`Color(0xB310121D)`), specular highlight borders (`Brush.linearGradient`), ambient drop shadow, and a custom background `Canvas` rendering fluid liquid wave curves.
+  * Added video metadata header with a 48dp video poster thumbnail (`GalleryMediaThumbnail`), extracted video title (`displayName` / `title` from MediaStore or Uri), and video subtitle info.
+  * Integrated interactive playback scrubber: elapsed timestamp on left (`31:45`), custom progress slider with drag seeking and track highlighting, and remaining timestamp on right (`-1:00:01`).
+  * Added centered prominent play/pause control button (`46dp` glass circle with `Pause` / `PlayArrow` icons) flanked by `-10s` rewind (`Replay10`) and `+10s` fast-forward (`Forward10`) quick action buttons.
+  * Configured theme-agnostic design: always uses translucent dark obsidian glass with pure white icons, text, and slider track for 100% legibility across both Light and Dark application themes.
+  * Wired [LiquidGlassVideoPlayer.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/components/LiquidGlassVideoPlayer.kt) into [FullScreenPhotoViewer.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/FullScreenPhotoViewer.kt) and [DetailScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/DetailScreen.kt), replacing the legacy Android system `MediaController` popup bar with synchronized tap gesture control card auto-hiding.
+  * Added a **Select Day** action beside **Select All** in Photos selection mode. It selects all images captured on the same local calendar day as the most recently selected timeline item, including images beyond the currently loaded page.
+  * Added **Filter by folder** to the Photos three-dot menu, with a checklist to include or exclude folders such as Downloads and Screenshots. Folder exclusions persist across app restarts and apply to both images and videos.
+  * Added a confirmation before deleting a photo from the home Photos viewer; confirmed deletion removes the original device file and clears its saved album/event references.
+  * Added a separate confirmation when removing media from an event; this removes only the event association and explicitly leaves the original file on the device.
+  * Updated album-cover selection to show only image items (no video placeholders), persist access to selected cover images, and clearly allow choosing an image from outside the current album via the device gallery picker.
+  * Restyled [FullScreenPhotoViewer.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/FullScreenPhotoViewer.kt) with a cohesive dark liquid-glass treatment, including a centered capture-date glass pill and floating bottom action dock.
+  * Replaced the viewer's scattered actions with only **Share**, **Delete**, and **Bookmark**; removed the top star/overflow actions and the screenshot's Edit and Lens actions. Sharing uses the Android system sharesheet, and bookmarking stays synchronized with photo favorites in both Photos and Event views.
+  * Center-aligned the date text within its glass pill and moved **Share**, **Delete**, and **Bookmark** for videos into the video player's lower-right three-dot menu; the standalone bottom action dock now appears only for photos.
+* **How it was executed:**
+  * Created `LiquidGlassVideoPlayer` wrapping `AndroidView` (`VideoView`) with Compose state management for `currentPositionMs`, `durationMs`, and seeking logic.
+  * Utilized `Canvas` drawing bezier curves for fluid liquid background graphics inside `RoundedCornerShape(26.dp)` glass card container.
+  * Added local-day MediaStore selection using the selected item's `takenAt` date, with MediaStore date-added fallback for images lacking a capture date.
+  * Loaded folder IDs and display names from MediaStore, filtered paging queries by excluded folder IDs, and saved the exclusions in DataStore.
+  * Used the Android MediaStore delete-consent request on Android 11+, recoverable security consent on Android 10, and the legacy storage permission/delete flow on older supported versions. Removed database references and repaired affected cover selections only after device deletion succeeds.
+  * Filtered the album-cover chooser by image MIME type and persisted the Photo Picker read grant for covers selected outside the album.
+  * Loaded each viewed image's capture date from MediaStore metadata with a date-added fallback, and styled the viewer overlays with translucent obsidian surfaces, specular gradient borders, rounded silhouettes, and soft shadows matching the video player.
+  * Added optional media-action callbacks to the shared liquid-glass video player, wired to the viewer's existing share, confirmation/deletion, and bookmark handlers.
+  * **Validation:** `:app:assembleDebug` succeeded and `:app:testDebugUnitTest` passed (1 unit test).
+* **Why it was executed:**
+  * To elevate video playback in the gallery app with a sleek, theme-agnostic iOS/Liquid Glass aesthetic featuring full media controls, thumbnail header, drag scrubbing, and synchronized screen tap gestures.

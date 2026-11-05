@@ -1,8 +1,7 @@
 package com.example.red_panda.ui.screens
 
 import android.net.Uri
-import android.widget.MediaController
-import android.widget.VideoView
+import com.example.red_panda.ui.components.LiquidGlassVideoPlayer
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -59,6 +58,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
+import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.data.local.entity.PhotoRefEntity
 import com.example.red_panda.ui.components.CategoryDialog
 import com.example.red_panda.ui.components.ConfirmDeleteDialog
@@ -73,6 +73,7 @@ fun DetailScreen(
     onBackClick: () -> Unit,
     onEventClick: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
     val categoryState by viewModel.category.collectAsState()
     val coverPhotoUri by viewModel.coverPhotoUri.collectAsState()
     val events by viewModel.events.collectAsState()
@@ -141,13 +142,21 @@ fun DetailScreen(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
+            MediaStoreHelper.persistMediaReadPermission(context, uri)
             viewModel.setCategoryCoverFromUri(uri.toString())
         }
     }
 
     if (showCoverEditDialog) {
         CoverEditDialog(
-            categoryPhotos = categoryPhotos,
+            categoryPhotos = remember(categoryPhotos) {
+                categoryPhotos.filter { photo ->
+                    runCatching {
+                        context.contentResolver.getType(Uri.parse(photo.contentUri))
+                            ?.startsWith("image/") == true
+                    }.getOrDefault(false)
+                }
+            },
             onDismiss = { showCoverEditDialog = false },
             onUseFirstPhoto = { viewModel.resetCategoryCover() },
             onSelectPhoto = { photoId -> viewModel.updateCategoryCover(photoId) },
@@ -1019,31 +1028,10 @@ fun AlbumSlideshowViewer(
             }
             val isActiveVideo = pagerState.currentPage == page
             if (isVideo) {
-                AndroidView(
-                    factory = { viewContext ->
-                        VideoView(viewContext).apply {
-                            tag = mediaUri
-                            val controller = MediaController(viewContext)
-                            controller.setAnchorView(this)
-                            setMediaController(controller)
-                            setVideoURI(Uri.parse(mediaUri))
-                            setOnPreparedListener { if (isActiveVideo) it.start() }
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                    update = { videoView ->
-                        if (videoView.tag != mediaUri) {
-                            videoView.tag = mediaUri
-                            videoView.setVideoURI(Uri.parse(mediaUri))
-                            videoView.setOnPreparedListener { if (isActiveVideo) it.start() }
-                        }
-                        if (isActiveVideo && !videoView.isPlaying) {
-                            videoView.start()
-                        } else if (!isActiveVideo && videoView.isPlaying) {
-                            videoView.pause()
-                        }
-                    },
-                    onRelease = { it.stopPlayback() }
+                LiquidGlassVideoPlayer(
+                    videoUri = mediaUri,
+                    isActive = isActiveVideo,
+                    modifier = Modifier.fillMaxSize()
                 )
             } else {
                 AsyncImage(
@@ -1180,7 +1168,7 @@ fun CoverEditDialog(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Pick from Device Gallery")
+                    Text("Choose Photo from Device Gallery")
                 }
 
                 if (categoryPhotos.isNotEmpty()) {

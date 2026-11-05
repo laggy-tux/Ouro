@@ -47,6 +47,7 @@ interface GalleryRepository {
 
     suspend fun addPhotosToEvent(eventId: Long, photoUris: List<String>)
     suspend fun removePhotoFromEvent(eventId: Long, photoId: Long): Boolean
+    suspend fun removePhotoReference(contentUri: String)
     suspend fun togglePhotoFavorite(photoId: Long)
     suspend fun togglePhotoFavoriteByUri(contentUri: String)
     suspend fun batchSetFavorite(photoUris: List<String>, isFavorite: Boolean)

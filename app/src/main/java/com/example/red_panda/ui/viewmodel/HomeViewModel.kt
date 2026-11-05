@@ -37,9 +37,22 @@ class HomeViewModel(
             initialValue = true
         )
 
+    val albumGridColumnCount: StateFlow<Int> = settingsRepository.albumGridColumnCount
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = 3
+        )
+
     fun toggleAlbumGridMode() {
         viewModelScope.launch {
             settingsRepository.setAlbumGridTwoColumn(!albumGridTwoColumn.value)
+        }
+    }
+
+    fun setAlbumGridColumnCount(count: Int) {
+        viewModelScope.launch {
+            settingsRepository.setAlbumGridColumnCount(count.coerceIn(3, 6))
         }
     }
 

@@ -28,7 +28,14 @@ data class LocalPhotoItem(
     val dateString: String,
     val width: Int = 0,
     val height: Int = 0,
-    val isVideo: Boolean = false
+    val isVideo: Boolean = false,
+    val folderId: String = "",
+    val folderName: String = "Other",
+)
+
+data class MediaFolder(
+    val id: String,
+    val name: String
 )
 
 data class SuggestedEventItem(
@@ -39,6 +46,66 @@ data class SuggestedEventItem(
 )
 
 object MediaStoreHelper {
+    fun getMediaStoreFolders(context: Context): List<MediaFolder> {
+        val folders = linkedMapOf<String, MediaFolder>()
+        listOf(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI to
+                arrayOf(MediaStore.Images.Media.BUCKET_ID, MediaStore.Images.Media.BUCKET_DISPLAY_NAME),
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI to
+                arrayOf(MediaStore.Video.Media.BUCKET_ID, MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+        ).forEach { (collection, projection) ->
+            val cursor = context.contentResolver.query(collection, projection, null, null, null)
+                ?: error("MediaStore returned no cursor while loading media folders.")
+            cursor.use {
+                val idColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.BUCKET_ID)
+                val nameColumn = it.getColumnIndexOrThrow(MediaStore.MediaColumns.BUCKET_DISPLAY_NAME)
+                while (it.moveToNext()) {
+                    val id = it.getString(idColumn).orEmpty()
+                    val name = it.getString(nameColumn)?.takeIf(String::isNotBlank) ?: "Other"
+                    folders.putIfAbsent(id, MediaFolder(id, name))
+                }
+            }
+        }
+        return folders.values.sortedBy { it.name.lowercase(Locale.getDefault()) }
+    }
+
+    fun fetchImageUrisForDate(context: Context, date: java.time.LocalDate): List<String> {
+        val zone = ZoneId.systemDefault()
+        val startMillis = date.atStartOfDay(zone).toInstant().toEpochMilli()
+        val endMillis = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+        val selection =
+            "(${MediaStore.Images.Media.DATE_TAKEN} >= ? AND ${MediaStore.Images.Media.DATE_TAKEN} < ?) " +
+                "OR ((${MediaStore.Images.Media.DATE_TAKEN} IS NULL OR ${MediaStore.Images.Media.DATE_TAKEN} <= 0) " +
+                "AND ${MediaStore.Images.Media.DATE_ADDED} >= ? AND ${MediaStore.Images.Media.DATE_ADDED} < ?)"
+        val selectionArgs = arrayOf(
+            startMillis.toString(),
+            endMillis.toString(),
+            (startMillis / 1000L).toString(),
+            (endMillis / 1000L).toString()
+        )
+        val cursor = context.contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Images.Media._ID),
+            selection,
+            selectionArgs,
+            null
+        ) ?: error("MediaStore returned no cursor while selecting images by day.")
+
+        return cursor.use {
+            val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+            buildList {
+                while (it.moveToNext()) {
+                    add(
+                        ContentUris.withAppendedId(
+                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                            it.getLong(idColumn)
+                        ).toString()
+                    )
+                }
+            }
+        }
+    }
+
     fun persistMediaReadPermission(context: Context, uri: Uri) {
         try {
             context.contentResolver.takePersistableUriPermission(

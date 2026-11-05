@@ -1,9 +1,15 @@
 package com.example.red_panda.ui.screens
 
 import android.Manifest
+import android.app.Activity
+import android.app.RecoverableSecurityException
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.MediaStore
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -20,6 +26,8 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.core.content.ContextCompat
 import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
@@ -56,12 +65,14 @@ import com.example.red_panda.data.local.PhotoAccessState
 import com.example.red_panda.data.paging.TimelineItem
 import com.example.red_panda.R
 import com.example.red_panda.ui.components.AddToEventDialog
+import com.example.red_panda.ui.components.ConfirmDeleteDialog
 import com.example.red_panda.ui.components.FloatingPillNavigationBarHeight
 import com.example.red_panda.ui.theme.HeartRed
 import com.example.red_panda.ui.theme.glassCard
 import com.example.red_panda.ui.viewmodel.PhotoFilter
 import com.example.red_panda.ui.viewmodel.PhotosTimelineViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -85,6 +96,9 @@ fun PhotosTimelineScreen(
     val taggedUris by viewModel.taggedPhotoUris.collectAsState()
     val favoriteUris by viewModel.favoritePhotoUris.collectAsState()
     val albums by viewModel.albums.collectAsState()
+    val mediaFolders by viewModel.mediaFolders.collectAsState()
+    val excludedMediaFolderIds by viewModel.excludedMediaFolderIds.collectAsState()
+    val mediaFolderError by viewModel.mediaFolderError.collectAsState()
 
     var photoAccessState by remember {
         mutableStateOf(MediaStoreHelper.getPhotoAccessState(context))
@@ -94,6 +108,15 @@ fun PhotosTimelineScreen(
     var showAddToEventDialog by remember { mutableStateOf(false) }
     var defaultEventDate by remember { mutableStateOf<String?>(null) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    var showFolderDialog by remember { mutableStateOf(false) }
+    var pendingExcludedFolderIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var pendingDeleteUri by remember { mutableStateOf<String?>(null) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    val selectedDay = remember(viewModel.lastSelectedPhotoTakenAt) {
+        viewModel.lastSelectedPhotoTakenAt?.let {
+            Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
+        }
+    }
 
     // Predictive back gestures
     BackHandler(enabled = selectedPhotoIndex >= 0) {
@@ -153,6 +176,123 @@ fun PhotosTimelineScreen(
             val uriStrings = uris.map { it.toString() }
             viewModel.selectAllPhotos(uriStrings)
         }
+    }
+
+    fun finishMediaDeletion(uri: String) {
+        viewModel.removeDeletedPhotoReference(uri)
+        pendingDeleteUri = null
+        selectedPhotoIndex = -1
+        timelineItems.refresh()
+        coroutineScope.launch {
+            snackbarHostState.showSnackbar("Media deleted from your device.")
+        }
+    }
+
+    val mediaDeleteRequestLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        val deletedUri = pendingDeleteUri
+        pendingDeleteUri = null
+        if (result.resultCode == Activity.RESULT_OK && deletedUri != null) {
+            finishMediaDeletion(deletedUri)
+        } else if (result.resultCode != Activity.RESULT_CANCELED) {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("The photo could not be deleted.")
+            }
+        }
+    }
+
+    fun deleteWithResolver(uriString: String) {
+        coroutineScope.launch {
+            try {
+                val deletedRows = withContext(Dispatchers.IO) {
+                    context.contentResolver.delete(Uri.parse(uriString), null, null)
+                }
+                if (deletedRows > 0) {
+                    finishMediaDeletion(uriString)
+                } else {
+                    pendingDeleteUri = null
+                    snackbarHostState.showSnackbar("The photo could not be deleted.")
+                }
+            } catch (exception: RecoverableSecurityException) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    mediaDeleteRequestLauncher.launch(
+                        IntentSenderRequest.Builder(
+                            exception.userAction.actionIntent.intentSender
+                        ).build()
+                    )
+                } else {
+                    pendingDeleteUri = null
+                    snackbarHostState.showSnackbar("Permission to delete this photo was denied.")
+                }
+            } catch (exception: Exception) {
+                pendingDeleteUri = null
+                snackbarHostState.showSnackbar(
+                    exception.localizedMessage ?: "Unable to delete the photo."
+                )
+            }
+        }
+    }
+
+    val writePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            pendingDeleteUri?.let(::deleteWithResolver)
+        } else {
+            pendingDeleteUri = null
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Storage permission is required to delete this media.")
+            }
+        }
+    }
+
+    fun requestMediaDeletion(uriString: String) {
+        pendingDeleteUri = uriString
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                val request = MediaStore.createDeleteRequest(
+                    context.contentResolver,
+                    listOf(Uri.parse(uriString))
+                )
+                mediaDeleteRequestLauncher.launch(
+                    IntentSenderRequest.Builder(request.intentSender).build()
+                )
+            } catch (exception: Exception) {
+                pendingDeleteUri = null
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(
+                        exception.localizedMessage ?: "Unable to request photo deletion."
+                    )
+                }
+            }
+        } else if (
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            writePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            deleteWithResolver(uriString)
+        }
+    }
+
+    if (showDeleteConfirmation && pendingDeleteUri != null) {
+        ConfirmDeleteDialog(
+            title = "Delete Media from Device",
+            message = "Delete this photo or video from your device? This permanently removes the original file and removes it from all albums.",
+            onDismiss = {
+                showDeleteConfirmation = false
+                pendingDeleteUri = null
+            },
+            onConfirm = {
+                val uri = pendingDeleteUri
+                showDeleteConfirmation = false
+                if (uri != null) requestMediaDeletion(uri)
+            }
+        )
     }
 
     if (showAddToEventDialog || showAddToEventDialogForPicked != null) {
@@ -289,6 +429,32 @@ fun PhotosTimelineScreen(
                         ) {
                             Text("Select All", fontWeight = FontWeight.Bold)
                         }
+                        TextButton(
+                            enabled = selectedDay != null,
+                            onClick = {
+                                val date = selectedDay ?: return@TextButton
+                                coroutineScope.launch {
+                                    try {
+                                        val uris = withContext(Dispatchers.IO) {
+                                            MediaStoreHelper.fetchImageUrisForDate(context, date)
+                                        }
+                                        if (uris.isNotEmpty()) {
+                                            viewModel.selectAllPhotos(uris)
+                                        } else {
+                                            snackbarHostState.showSnackbar("No images found for this day.")
+                                        }
+                                    } catch (exception: CancellationException) {
+                                        throw exception
+                                    } catch (exception: Exception) {
+                                        snackbarHostState.showSnackbar(
+                                            exception.localizedMessage ?: "Unable to select images for this day."
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
+                            Text("Select Day", fontWeight = FontWeight.Bold)
+                        }
                     } else {
                         Box {
                             IconButton(
@@ -363,6 +529,26 @@ fun PhotosTimelineScreen(
                                     onClick = {
                                         showMoreMenu = false
                                         viewModel.toggleFilterUntaggedOnly()
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Filter by folder") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.FolderOpen, contentDescription = null)
+                                    },
+                                    trailingIcon = {
+                                        if (excludedMediaFolderIds.isNotEmpty()) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Folder filter active",
+                                                tint = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        showMoreMenu = false
+                                        pendingExcludedFolderIds = excludedMediaFolderIds.toSet()
+                                        showFolderDialog = true
                                     }
                                 )
                                 DropdownMenuItem(
@@ -704,13 +890,13 @@ fun PhotosTimelineScreen(
                                         isFavorite = isFav,
                                         onClick = {
                                             if (viewModel.isSelectionMode) {
-                                                viewModel.togglePhotoSelection(photoUri)
+                                                viewModel.togglePhotoSelection(photoUri, item.photo.takenAt)
                                             } else {
                                                 selectedPhotoIndex = index
                                             }
                                         },
                                         onLongClick = {
-                                            viewModel.togglePhotoSelection(photoUri)
+                                            viewModel.togglePhotoSelection(photoUri, item.photo.takenAt)
                                         }
                                     )
                                 }
@@ -806,6 +992,93 @@ fun PhotosTimelineScreen(
         }
     }
 
+    if (showFolderDialog) {
+        AlertDialog(
+            onDismissRequest = { showFolderDialog = false },
+            title = { Text("Filter by folder") },
+            text = {
+                Column {
+                    Text(
+                        text = "Choose which folders appear in Photos.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    if (mediaFolderError != null) {
+                        Text(
+                            text = mediaFolderError ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    } else if (mediaFolders.isEmpty()) {
+                        Text(
+                            text = "No media folders found.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .heightIn(max = 360.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            mediaFolders.forEach { folder ->
+                                val isIncluded = folder.id !in pendingExcludedFolderIds
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            pendingExcludedFolderIds =
+                                                if (isIncluded) {
+                                                    pendingExcludedFolderIds + folder.id
+                                                } else {
+                                                    pendingExcludedFolderIds - folder.id
+                                                }
+                                        }
+                                        .padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = isIncluded,
+                                        onCheckedChange = { checked ->
+                                            pendingExcludedFolderIds =
+                                                if (checked) {
+                                                    pendingExcludedFolderIds - folder.id
+                                                } else {
+                                                    pendingExcludedFolderIds + folder.id
+                                                }
+                                        }
+                                    )
+                                    Text(
+                                        text = folder.name,
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = mediaFolderError == null,
+                    onClick = {
+                        viewModel.setExcludedMediaFolderIds(pendingExcludedFolderIds)
+                        showFolderDialog = false
+                    }
+                ) {
+                    Text("Apply")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showFolderDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     // Draw above the Scaffold so the full-screen viewer also covers the Photos app bar.
     if (selectedPhotoIndex >= 0) {
         val photoUris = remember(loadedTimelineItems) {
@@ -838,6 +1111,12 @@ fun PhotosTimelineScreen(
                     val uri = photoUris.getOrNull(page)
                     if (uri != null) {
                         viewModel.togglePhotoFavorite(uri)
+                    }
+                },
+                onRemovePhoto = { page ->
+                    photoUris.getOrNull(page)?.let { uri ->
+                        pendingDeleteUri = uri
+                        showDeleteConfirmation = true
                     }
                 }
             )

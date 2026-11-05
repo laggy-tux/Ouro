@@ -12,9 +12,14 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.map
+import androidx.datastore.preferences.core.edit
 import com.example.red_panda.data.paging.MediaStorePagingSource
 import com.example.red_panda.data.paging.TimelineItem
+import com.example.red_panda.data.local.MediaFolder
+import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.data.repository.GalleryRepository
+import com.example.red_panda.data.repository.EXCLUDED_MEDIA_FOLDER_IDS
+import com.example.red_panda.data.repository.dataStore
 import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.SuggestedEvent
 import kotlinx.coroutines.Dispatchers
@@ -49,24 +54,46 @@ class PhotosTimelineViewModel(
     var selectedPhotoUris by mutableStateOf<Set<String>>(emptySet())
         private set
 
+    var lastSelectedPhotoTakenAt by mutableStateOf<Long?>(null)
+        private set
+
+    private val selectedPhotoTakenAtByUri = mutableMapOf<String, Long>()
+    private var lastSelectedPhotoUri: String? = null
+
     fun toggleSelectionMode() {
         isSelectionMode = !isSelectionMode
         if (!isSelectionMode) {
             selectedPhotoUris = emptySet()
+            selectedPhotoTakenAtByUri.clear()
+            lastSelectedPhotoUri = null
+            lastSelectedPhotoTakenAt = null
         }
     }
 
     fun exitSelectionMode() {
         isSelectionMode = false
         selectedPhotoUris = emptySet()
+        selectedPhotoTakenAtByUri.clear()
+        lastSelectedPhotoUri = null
+        lastSelectedPhotoTakenAt = null
     }
 
-    fun togglePhotoSelection(uri: String) {
+    fun togglePhotoSelection(uri: String, takenAt: Long? = null) {
         val current = selectedPhotoUris.toMutableSet()
         if (current.contains(uri)) {
             current.remove(uri)
+            selectedPhotoTakenAtByUri.remove(uri)
+            if (lastSelectedPhotoUri == uri) {
+                lastSelectedPhotoUri = current.lastOrNull { it in selectedPhotoTakenAtByUri }
+                lastSelectedPhotoTakenAt = lastSelectedPhotoUri?.let(selectedPhotoTakenAtByUri::get)
+            }
         } else {
             current.add(uri)
+            if (takenAt != null) {
+                selectedPhotoTakenAtByUri[uri] = takenAt
+                lastSelectedPhotoUri = uri
+                lastSelectedPhotoTakenAt = takenAt
+            }
         }
         selectedPhotoUris = current
         if (selectedPhotoUris.isNotEmpty()) {
@@ -84,6 +111,9 @@ class PhotosTimelineViewModel(
     fun clearSelection() {
         selectedPhotoUris = emptySet()
         isSelectionMode = false
+        selectedPhotoTakenAtByUri.clear()
+        lastSelectedPhotoUri = null
+        lastSelectedPhotoTakenAt = null
     }
 
     // Filter State (ALL, UNTAGGED_ONLY, FAVORITES_ONLY)
@@ -128,6 +158,12 @@ class PhotosTimelineViewModel(
         }
     }
 
+    fun removeDeletedPhotoReference(uri: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.removePhotoReference(uri)
+        }
+    }
+
     fun batchFavoriteSelected(isFavorite: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             val uris = selectedPhotoUris.toList()
@@ -148,6 +184,28 @@ class PhotosTimelineViewModel(
     private val _suggestedEvents = MutableStateFlow<List<SuggestedEvent>>(emptyList())
     val suggestedEvents: StateFlow<List<SuggestedEvent>> = _suggestedEvents.asStateFlow()
 
+    private val _mediaFolders = MutableStateFlow<List<MediaFolder>>(emptyList())
+    val mediaFolders: StateFlow<List<MediaFolder>> = _mediaFolders.asStateFlow()
+
+    val excludedMediaFolderIds: StateFlow<Set<String>> = context.dataStore.data
+        .map { preferences -> preferences[EXCLUDED_MEDIA_FOLDER_IDS].orEmpty() }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptySet()
+        )
+
+    private val _mediaFolderError = MutableStateFlow<String?>(null)
+    val mediaFolderError: StateFlow<String?> = _mediaFolderError.asStateFlow()
+
+    fun setExcludedMediaFolderIds(folderIds: Set<String>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            context.dataStore.edit { preferences ->
+                preferences[EXCLUDED_MEDIA_FOLDER_IDS] = folderIds
+            }
+        }
+    }
+
     fun dismissSuggestedEvent(suggestionId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.dismissSuggestedEvent(context, suggestionId)
@@ -164,16 +222,27 @@ class PhotosTimelineViewModel(
 
     init {
         loadSuggestedEvents()
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _mediaFolders.value = MediaStoreHelper.getMediaStoreFolders(context)
+                _mediaFolderError.value = null
+            } catch (exception: Exception) {
+                _mediaFolderError.value = exception.localizedMessage
+                    ?: "Unable to load media folders."
+            }
+        }
     }
 
     // Paged Timeline Items (Flow combines taggedPhotoUris, favoritePhotoUris, and activeFilter)
     val timelineItems: Flow<PagingData<TimelineItem>> = combine(
         taggedPhotoUris,
         favoritePhotoUris,
-        androidx.compose.runtime.snapshotFlow { activeFilter }
-    ) { tagged, favorites, filter ->
-        Triple(tagged, favorites, filter)
-    }.flatMapLatest { (tagged, favorites, filter) ->
+        androidx.compose.runtime.snapshotFlow { activeFilter },
+        excludedMediaFolderIds
+    ) { tagged, favorites, filter, excludedFolders ->
+        Triple(tagged, favorites, filter to excludedFolders)
+    }.flatMapLatest { (tagged, favorites, filterAndFolders) ->
+        val (filter, excludedFolders) = filterAndFolders
         val pageSize = 60
         Pager(
             config = PagingConfig(
@@ -188,6 +257,7 @@ class PhotosTimelineViewModel(
                     filterUntaggedOnly = filter == PhotoFilter.UNTAGGED_ONLY,
                     favoritePhotoUris = favorites,
                     filterFavoritesOnly = filter == PhotoFilter.FAVORITES_ONLY,
+                    excludedFolderIds = excludedFolders,
                     pageSize = pageSize
                 )
             }

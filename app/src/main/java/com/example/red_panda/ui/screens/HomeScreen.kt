@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -39,6 +40,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -132,6 +135,8 @@ fun HomeScreen(
     val coroutineScope = rememberCoroutineScope()
 
     val isGridTwoColumn by viewModel.albumGridTwoColumn.collectAsState()
+    val albumGridColumnCount by viewModel.albumGridColumnCount.collectAsState()
+    val currentColumnCount by rememberUpdatedState(albumGridColumnCount)
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var albumToEdit by remember { mutableStateOf<Album?>(null) }
@@ -266,7 +271,7 @@ fun HomeScreen(
             )
         }
     ) { innerPadding ->
-        val columns = if (isGridTwoColumn) 2 else 1
+        val columns = albumGridColumnCount
 
         if (albums.isEmpty()) {
             Box(
@@ -326,7 +331,33 @@ fun HomeScreen(
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columns),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        var accumulatedZoom = 1f
+                        var gestureColumnCount = currentColumnCount
+                        detectTransformGestures { _, _, zoom, _ ->
+                            accumulatedZoom *= zoom
+                            when {
+                                accumulatedZoom >= 1.25f -> {
+                                    val nextColumnCount = (gestureColumnCount + 1).coerceAtMost(6)
+                                    if (nextColumnCount != gestureColumnCount) {
+                                        gestureColumnCount = nextColumnCount
+                                        viewModel.setAlbumGridColumnCount(nextColumnCount)
+                                    }
+                                    accumulatedZoom = 1f
+                                }
+                                accumulatedZoom <= 0.8f -> {
+                                    val nextColumnCount = (gestureColumnCount - 1).coerceAtLeast(3)
+                                    if (nextColumnCount != gestureColumnCount) {
+                                        gestureColumnCount = nextColumnCount
+                                        viewModel.setAlbumGridColumnCount(nextColumnCount)
+                                    }
+                                    accumulatedZoom = 1f
+                                }
+                            }
+                        }
+                    },
                 contentPadding = PaddingValues(
                     start = 16.dp,
                     end = 16.dp,
@@ -472,14 +503,20 @@ fun HomeScreen(
                     }
 
                     items(sectionAlbums, key = { it.id }) { album ->
-                        AlbumCard(
-                            album = album,
-                            cardAspectRatio = if (isGridTwoColumn) 1f else 2f,
-                            onClick = { onAlbumClick(album.id) },
-                            onToggleFavorite = { viewModel.toggleFavorite(album.id) },
-                            onEdit = { albumToEdit = album },
-                            onDelete = { albumToDelete = album }
-                        )
+                        Box(
+                            modifier = Modifier
+                                .animateItem()
+                                .animateContentSize()
+                        ) {
+                            AlbumCard(
+                                album = album,
+                                cardAspectRatio = if (isGridTwoColumn) 1f else 2f,
+                                onClick = { onAlbumClick(album.id) },
+                                onToggleFavorite = { viewModel.toggleFavorite(album.id) },
+                                onEdit = { albumToEdit = album },
+                                onDelete = { albumToDelete = album }
+                            )
+                        }
                     }
                 }
             }

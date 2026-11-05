@@ -89,6 +89,7 @@ fun EventDetailScreen(
     var selectedPhotoIndex by remember { mutableIntStateOf(0) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
+    var photoToRemove by remember { mutableStateOf<Long?>(null) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -108,6 +109,19 @@ fun EventDetailScreen(
             onConfirm = {
                 viewModel.deleteEvent(onDeleted = onBackClick)
                 showDeleteDialog = false
+            }
+        )
+    }
+
+    photoToRemove?.let { photoId ->
+        ConfirmDeleteDialog(
+            title = "Remove Media from Event",
+            message = "Remove this photo or video from '${event?.title.orEmpty()}'? The original file will remain in your device gallery.",
+            onDismiss = { photoToRemove = null },
+            onConfirm = {
+                viewModel.removePhoto(photoId)
+                photoToRemove = null
+                showViewer = false
             }
         )
     }
@@ -332,10 +346,17 @@ fun EventDetailScreen(
             FullScreenPhotoViewer(
                 photoUris = event.photoUris,
                 initialIndex = selectedPhotoIndex,
+                favoriteUris = event.photoRefs.filter { it.isFavorite }.mapTo(mutableSetOf()) { it.contentUri },
                 onDismiss = { showViewer = false },
+                onToggleFavorite = { page ->
+                    event.photoRefs.getOrNull(page)?.let { photo ->
+                        viewModel.togglePhotoFavorite(photo.id)
+                    }
+                },
                 onRemovePhoto = { page ->
                     if (page in event.photoRefs.indices) {
-                        viewModel.removePhoto(event.photoRefs[page].id)
+                        val photo = event.photoRefs[page]
+                        photoToRemove = photo.id
                     }
                 }
             )

@@ -24,6 +24,7 @@ class MediaStorePagingSource(
     private val filterUntaggedOnly: Boolean = false,
     private val favoritePhotoUris: Set<String> = emptySet(),
     private val filterFavoritesOnly: Boolean = false,
+    private val excludedFolderIds: Set<String> = emptySet(),
     private val pageSize: Int = 60
 ) : PagingSource<Int, LocalPhotoItem>() {
 
@@ -64,12 +65,14 @@ class MediaStorePagingSource(
             val images = queryMedia(
                 collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 queryCount = queryCount,
-                isVideo = false
+                isVideo = false,
+                excludedFolderIds = excludedFolderIds
             )
             val videos = queryMedia(
                 collection = MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                 queryCount = queryCount,
-                isVideo = true
+                isVideo = true,
+                excludedFolderIds = excludedFolderIds
             )
             val media = (images + videos)
                 .sortedWith(compareByDescending<LocalPhotoItem> { it.takenAt }.thenByDescending { it.id })
@@ -99,18 +102,31 @@ class MediaStorePagingSource(
     private fun queryMedia(
         collection: android.net.Uri,
         queryCount: Int,
-        isVideo: Boolean
+        isVideo: Boolean,
+        excludedFolderIds: Set<String>
     ): List<LocalPhotoItem> {
         val projection = arrayOf(
             MediaStore.MediaColumns._ID,
             MediaStore.MediaColumns.DATE_TAKEN,
             MediaStore.MediaColumns.DATE_ADDED,
             MediaStore.MediaColumns.WIDTH,
-            MediaStore.MediaColumns.HEIGHT
+            MediaStore.MediaColumns.HEIGHT,
+            MediaStore.MediaColumns.BUCKET_ID,
+            MediaStore.MediaColumns.BUCKET_DISPLAY_NAME
         )
         val queryArgs = Bundle().apply {
             putInt(ContentResolver.QUERY_ARG_LIMIT, queryCount)
             putInt(ContentResolver.QUERY_ARG_OFFSET, 0)
+            if (excludedFolderIds.isNotEmpty()) {
+                putString(
+                    ContentResolver.QUERY_ARG_SQL_SELECTION,
+                    "${MediaStore.MediaColumns.BUCKET_ID} NOT IN (${excludedFolderIds.joinToString(",") { "?" }})"
+                )
+                putStringArray(
+                    ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                    excludedFolderIds.toTypedArray()
+                )
+            }
             putString(
                 ContentResolver.QUERY_ARG_SQL_SORT_ORDER,
                 "CASE WHEN ${MediaStore.MediaColumns.DATE_TAKEN} > 0 " +
@@ -128,6 +144,8 @@ class MediaStorePagingSource(
             val dateAddedColumn = c.getColumnIndex(MediaStore.MediaColumns.DATE_ADDED)
             val widthColumn = c.getColumnIndex(MediaStore.MediaColumns.WIDTH)
             val heightColumn = c.getColumnIndex(MediaStore.MediaColumns.HEIGHT)
+            val folderIdColumn = c.getColumnIndex(MediaStore.MediaColumns.BUCKET_ID)
+            val folderNameColumn = c.getColumnIndex(MediaStore.MediaColumns.BUCKET_DISPLAY_NAME)
             buildList {
                 while (c.moveToNext()) {
                     val id = c.getLong(idColumn)
@@ -144,7 +162,13 @@ class MediaStorePagingSource(
                             dateString = formatDate(takenAt),
                             width = if (widthColumn >= 0) c.getInt(widthColumn) else 0,
                             height = if (heightColumn >= 0) c.getInt(heightColumn) else 0,
-                            isVideo = isVideo
+                            isVideo = isVideo,
+                            folderId = if (folderIdColumn >= 0) c.getString(folderIdColumn).orEmpty() else "",
+                            folderName = if (folderNameColumn >= 0) {
+                                c.getString(folderNameColumn)?.takeIf(String::isNotBlank) ?: "Other"
+                            } else {
+                                "Other"
+                            }
                         )
                     )
                 }
