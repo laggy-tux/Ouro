@@ -41,7 +41,7 @@ class HomeViewModel(
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
-            initialValue = 3
+            initialValue = 2
         )
 
     fun toggleAlbumGridMode() {
@@ -52,7 +52,7 @@ class HomeViewModel(
 
     fun setAlbumGridColumnCount(count: Int) {
         viewModelScope.launch {
-            settingsRepository.setAlbumGridColumnCount(count.coerceIn(3, 6))
+            settingsRepository.setAlbumGridColumnCount(count.coerceIn(2, 6))
         }
     }
 

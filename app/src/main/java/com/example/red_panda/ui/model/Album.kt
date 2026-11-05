@@ -34,5 +34,6 @@ data class Album(
     val coverColor: Long = 0xFF2C2C30,
     val coverPhotoUri: String? = null,
     val coverPhotoId: Long? = null,
-    val events: List<EventMock> = emptyList()
+    val events: List<EventMock> = emptyList(),
+    val createdAt: Long = 0L
 )

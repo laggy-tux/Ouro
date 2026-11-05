@@ -1,6 +1,7 @@
 package com.example.red_panda.data.repository
 
 import android.content.Context
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -12,7 +13,29 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
+private val ALBUM_GRID_LAYOUT_VERSION = intPreferencesKey("album_grid_layout_version")
+
+private object AlbumGridLayoutMigration : DataMigration<Preferences> {
+    private val columnCountKey = intPreferencesKey("album_grid_column_count")
+    private val squareCardsKey = booleanPreferencesKey("album_grid_two_column")
+
+    override suspend fun shouldMigrate(currentData: Preferences): Boolean =
+        currentData[ALBUM_GRID_LAYOUT_VERSION] != 3
+
+    override suspend fun migrate(currentData: Preferences): Preferences =
+        currentData.toMutablePreferences().apply {
+            this[columnCountKey] = 2
+            this[squareCardsKey] = true
+            this[ALBUM_GRID_LAYOUT_VERSION] = 3
+        }
+
+    override suspend fun cleanUp() = Unit
+}
+
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "app_settings",
+    produceMigrations = { listOf(AlbumGridLayoutMigration) }
+)
 internal val DISMISSED_SUGGESTION_IDS = stringSetPreferencesKey("dismissed_suggestion_ids")
 internal val EXCLUDED_MEDIA_FOLDER_IDS = stringSetPreferencesKey("excluded_media_folder_ids")
 
@@ -55,7 +78,7 @@ class SettingsRepositoryImpl(
 
     override val albumGridColumnCount: Flow<Int> =
         context.dataStore.data.map { preferences ->
-            (preferences[PreferencesKeys.ALBUM_GRID_COLUMN_COUNT] ?: MIN_ALBUM_GRID_COLUMNS)
+            (preferences[PreferencesKeys.ALBUM_GRID_COLUMN_COUNT] ?: 2)
                 .coerceIn(MIN_ALBUM_GRID_COLUMNS, MAX_ALBUM_GRID_COLUMNS)
         }
 
@@ -79,7 +102,7 @@ class SettingsRepositoryImpl(
     }
 
     private companion object {
-        const val MIN_ALBUM_GRID_COLUMNS = 3
+        const val MIN_ALBUM_GRID_COLUMNS = 2
         const val MAX_ALBUM_GRID_COLUMNS = 6
     }
 }

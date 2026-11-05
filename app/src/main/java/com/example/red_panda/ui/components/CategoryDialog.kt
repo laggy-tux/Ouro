@@ -2,9 +2,9 @@ package com.example.red_panda.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,8 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -48,7 +46,6 @@ fun CategoryDialog(
     onConfirm: (name: String, section: String, coverColor: Long) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
-    var selectedSection by remember { mutableStateOf(initialSection.ifBlank { "Other Albums" }) }
     val selectedColor = if (initialColor != 0L) initialColor else 0xFF2C2C30
     val dialogMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
 
@@ -98,37 +95,6 @@ fun CategoryDialog(
                         colors = popupTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Section",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        listOf("Recently", "Other Albums").forEach { section ->
-                            FilterChip(
-                                selected = selectedSection == section,
-                                onClick = { selectedSection = section },
-                                label = { Text(section) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.onSurface,
-                                    selectedLabelColor = MaterialTheme.colorScheme.surface,
-                                    containerColor = MaterialTheme.colorScheme.surface,
-                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    enabled = true,
-                                    selected = selectedSection == section,
-                                    borderColor = MaterialTheme.colorScheme.outline,
-                                    selectedBorderColor = MaterialTheme.colorScheme.onSurface
-                                )
-                            )
-                        }
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -143,7 +109,7 @@ fun CategoryDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         enabled = name.isNotBlank(),
-                        onClick = { onConfirm(name.trim(), selectedSection, selectedColor) },
+                        onClick = { onConfirm(name.trim(), initialSection.ifBlank { "Other Albums" }, selectedColor) },
                         colors = popupButtonColors()
                     ) {
                         Text(if (isEditMode) "Save" else "Create")

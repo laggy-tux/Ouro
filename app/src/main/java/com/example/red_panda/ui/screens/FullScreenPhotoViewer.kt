@@ -62,6 +62,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.shape.CircleShape
@@ -273,6 +274,7 @@ fun FullScreenPhotoViewer(
                         DropdownMenu(
                             expanded = showVideoActions,
                             onDismissRequest = { showVideoActions = false },
+                            offset = DpOffset(x = 0.dp, y = 12.dp),
                             modifier = Modifier
                                 .width(184.dp)
                                 .viewerGlass(RoundedCornerShape(20.dp))

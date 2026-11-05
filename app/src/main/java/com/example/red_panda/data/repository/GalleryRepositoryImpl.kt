@@ -88,7 +88,8 @@ class GalleryRepositoryImpl(
                     coverColor = category.coverColor,
                     coverPhotoUri = resolvedCoverUri,
                     coverPhotoId = category.coverPhotoId,
-                    events = eventMocks
+                    events = eventMocks,
+                    createdAt = category.createdAt
                 )
             }
         }.flowOn(Dispatchers.IO)

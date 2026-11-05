@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CollectionsBookmark
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.animation.animateContentSize
@@ -138,17 +140,37 @@ fun HomeScreen(
     val albumGridColumnCount by viewModel.albumGridColumnCount.collectAsState()
     val currentColumnCount by rememberUpdatedState(albumGridColumnCount)
 
+    var selectedAlbumSection by rememberSaveable { mutableStateOf<String?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var albumToEdit by remember { mutableStateOf<Album?>(null) }
     var albumToDelete by remember { mutableStateOf<Album?>(null) }
     var suggestedEventToCreate by remember { mutableStateOf<SuggestedEvent?>(null) }
 
     // Predictive back gestures for open dialogs
-    BackHandler(enabled = showCreateDialog || albumToEdit != null || albumToDelete != null || suggestedEventToCreate != null) {
-        showCreateDialog = false
-        albumToEdit = null
-        albumToDelete = null
-        suggestedEventToCreate = null
+    BackHandler(
+        enabled = selectedAlbumSection != null || showCreateDialog || albumToEdit != null ||
+            albumToDelete != null || suggestedEventToCreate != null
+    ) {
+        when {
+            showCreateDialog -> showCreateDialog = false
+            albumToEdit != null -> albumToEdit = null
+            albumToDelete != null -> albumToDelete = null
+            suggestedEventToCreate != null -> suggestedEventToCreate = null
+            else -> selectedAlbumSection = null
+        }
+    }
+
+    val newestAlbums = remember(albums) { albums.sortedByDescending(Album::createdAt) }
+    val favoriteAlbums = remember(newestAlbums) { newestAlbums.filter(Album::isFavorite) }
+    val favoriteIds = remember(favoriteAlbums) { favoriteAlbums.mapTo(mutableSetOf(), Album::id) }
+    val otherAlbums = remember(newestAlbums, favoriteIds) {
+        newestAlbums.filter { it.id !in favoriteIds }
+    }
+    val albumSections = remember(favoriteAlbums, otherAlbums) {
+        listOf(
+            "Fav" to favoriteAlbums,
+            "Other Albums" to otherAlbums
+        ).filter { it.second.isNotEmpty() }
     }
 
     if (showCreateDialog) {
@@ -222,9 +244,20 @@ fun HomeScreen(
         },
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    if (selectedAlbumSection != null) {
+                        IconButton(onClick = { selectedAlbumSection = null }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back to all albums",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
+                },
                 title = {
                     Text(
-                        text = "Albums",
+                        text = selectedAlbumSection ?: "Albums",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -235,9 +268,9 @@ fun HomeScreen(
                         Icon(
                             imageVector = if (isGridTwoColumn) Icons.Default.GridOn else Icons.Default.GridView,
                             contentDescription = if (isGridTwoColumn) {
-                                "Switch to 2:1 album cards"
+                                "Switch to album list"
                             } else {
-                                "Switch to 1:1 album cards"
+                                "Switch to album grid"
                             },
                             tint = MaterialTheme.colorScheme.onBackground
                         )
@@ -271,7 +304,7 @@ fun HomeScreen(
             )
         }
     ) { innerPadding ->
-        val columns = albumGridColumnCount
+        val columns = if (isGridTwoColumn) albumGridColumnCount.coerceAtLeast(2) else 1
 
         if (albums.isEmpty()) {
             Box(
@@ -333,27 +366,29 @@ fun HomeScreen(
                 columns = GridCells.Fixed(columns),
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(Unit) {
+                    .pointerInput(isGridTwoColumn, currentColumnCount) {
                         var accumulatedZoom = 1f
-                        var gestureColumnCount = currentColumnCount
-                        detectTransformGestures { _, _, zoom, _ ->
-                            accumulatedZoom *= zoom
-                            when {
-                                accumulatedZoom >= 1.25f -> {
-                                    val nextColumnCount = (gestureColumnCount + 1).coerceAtMost(6)
-                                    if (nextColumnCount != gestureColumnCount) {
-                                        gestureColumnCount = nextColumnCount
-                                        viewModel.setAlbumGridColumnCount(nextColumnCount)
+                        if (isGridTwoColumn) {
+                            var gestureColumnCount = currentColumnCount.coerceAtLeast(2)
+                            detectTransformGestures { _, _, zoom, _ ->
+                                accumulatedZoom *= zoom
+                                when {
+                                    accumulatedZoom >= 1.25f -> {
+                                        val nextColumnCount = (gestureColumnCount + 1).coerceAtMost(6)
+                                        if (nextColumnCount != gestureColumnCount) {
+                                            gestureColumnCount = nextColumnCount
+                                            viewModel.setAlbumGridColumnCount(nextColumnCount)
+                                        }
+                                        accumulatedZoom = 1f
                                     }
-                                    accumulatedZoom = 1f
-                                }
-                                accumulatedZoom <= 0.8f -> {
-                                    val nextColumnCount = (gestureColumnCount - 1).coerceAtLeast(3)
-                                    if (nextColumnCount != gestureColumnCount) {
-                                        gestureColumnCount = nextColumnCount
-                                        viewModel.setAlbumGridColumnCount(nextColumnCount)
+                                    accumulatedZoom <= 0.8f -> {
+                                        val nextColumnCount = (gestureColumnCount - 1).coerceAtLeast(2)
+                                        if (nextColumnCount != gestureColumnCount) {
+                                            gestureColumnCount = nextColumnCount
+                                            viewModel.setAlbumGridColumnCount(nextColumnCount)
+                                        }
+                                        accumulatedZoom = 1f
                                     }
-                                    accumulatedZoom = 1f
                                 }
                             }
                         }
@@ -368,7 +403,7 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                when (photoAccessState) {
+                if (selectedAlbumSection == null) when (photoAccessState) {
                     PhotoAccessState.PARTIAL -> {
                         item(span = { GridItemSpan(columns) }) {
                             Card(
@@ -456,7 +491,10 @@ fun HomeScreen(
                     PhotoAccessState.FULL -> { /* Full access granted */ }
                 }
 
-                if (photoAccessState != PhotoAccessState.DENIED && suggestedEvents.isNotEmpty()) {
+                if (selectedAlbumSection == null &&
+                    photoAccessState != PhotoAccessState.DENIED &&
+                    suggestedEvents.isNotEmpty()
+                ) {
                     item(span = { GridItemSpan(columns) }) {
                         SuggestedEventsSection(
                             suggestedEvents = suggestedEvents,
@@ -476,9 +514,11 @@ fun HomeScreen(
                     }
                 }
 
-                val sections = albums.groupBy { it.section }
+                val visibleSections =
+                    if (selectedAlbumSection == null) albumSections
+                    else albumSections.filter { it.first == selectedAlbumSection }
 
-                sections.forEach { (sectionName, sectionAlbums) ->
+                visibleSections.forEach { (sectionName, sectionAlbums) ->
                     item(span = { GridItemSpan(columns) }) {
                         Row(
                             modifier = Modifier
@@ -493,16 +533,21 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onBackground
                             )
-                            Text(
-                                text = "See All",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            if (selectedAlbumSection == null) {
+                                Text(
+                                    text = "See All",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.clickable {
+                                        selectedAlbumSection = sectionName
+                                    }
+                                )
+                            }
                         }
                     }
 
-                    items(sectionAlbums, key = { it.id }) { album ->
+                    items(sectionAlbums, key = { album -> "$sectionName:${album.id}" }) { album ->
                         Box(
                             modifier = Modifier
                                 .animateItem()
