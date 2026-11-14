@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -48,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -61,12 +63,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.metrics.performance.PerformanceMetricsState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.red_panda.RedPandaApplication
 import com.example.red_panda.ui.components.ConfirmDeleteDialog
 import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.ui.viewmodel.EventDetailViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+
+private const val PREFETCH_SCROLL_ITEM_COUNT = 30
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,6 +145,45 @@ fun EventDetailScreen(
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         }
         return
+    }
+
+    val app = context.applicationContext as RedPandaApplication
+    val gridState = rememberLazyGridState()
+    val view = LocalView.current
+    val metricsStateHolder = remember(view) {
+        PerformanceMetricsState.getHolderForHierarchy(view)
+    }
+
+    LaunchedEffect(event.id, event.photoUris) {
+        app.thumbnailRepository.prefetchAlbum(event.photoUris.firstOrNull(), event.photoUris)
+    }
+
+    LaunchedEffect(gridState, event.photoUris) {
+        var previousFirstVisibleIndex = gridState.firstVisibleItemIndex
+        snapshotFlow {
+            Triple(
+                gridState.isScrollInProgress,
+                gridState.firstVisibleItemIndex,
+                gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+            )
+        }.distinctUntilChanged().collectLatest { (isScrolling, firstVisible, lastVisible) ->
+            if (isScrolling) {
+                metricsStateHolder.state?.putState("event_grid", "scrolling")
+                val upcoming = if (firstVisible >= previousFirstVisibleIndex) {
+                    val start = (lastVisible ?: firstVisible) + 1
+                    event.photoUris.drop(start).take(PREFETCH_SCROLL_ITEM_COUNT)
+                } else {
+                    event.photoUris.subList(
+                        (firstVisible - PREFETCH_SCROLL_ITEM_COUNT).coerceAtLeast(0),
+                        firstVisible.coerceAtMost(event.photoUris.size)
+                    )
+                }
+                app.thumbnailRepository.prefetch(upcoming)
+            } else {
+                metricsStateHolder.state?.removeState("event_grid")
+            }
+            previousFirstVisibleIndex = firstVisible
+        }
     }
 
     Box(
@@ -295,11 +343,17 @@ fun EventDetailScreen(
                     }
                 } else {
                     LazyVerticalGrid(
+                        state = gridState,
                         columns = GridCells.Fixed(3),
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(6.dp)
                     ) {
-                        itemsIndexed(photos) { index, photoUri ->
+                        itemsIndexed(
+                            items = event.photoRefs,
+                            key = { _, photo -> photo.id },
+                            contentType = { _, _ -> "event_media" }
+                        ) { index, photo ->
+                            val photoUri = photo.contentUri
                             val isVideo = remember(photoUri) {
                                 context.contentResolver.getType(Uri.parse(photoUri))?.startsWith("video/") == true
                             }

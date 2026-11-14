@@ -385,7 +385,7 @@ Red-panda/
 * **Why it was executed:**
   * To match the supplied Ouro gallery reference: a continuous, naturally proportioned photo/video wall with temporary date context during scrolling.
 
----
+--
 
 #### 🔹 Phase 17.5: Theme-Agnostic Liquid Glass Video Player UI
 * **What was executed:**
@@ -416,3 +416,68 @@ Red-panda/
   * **Validation:** `:app:assembleDebug` succeeded and `:app:testDebugUnitTest` passed (1 unit test).
 * **Why it was executed:**
   * To elevate video playback in the gallery app with a sleek, theme-agnostic iOS/Liquid Glass aesthetic featuring full media controls, thumbnail header, drag scrubbing, and synchronized screen tap gestures.
+
+---
+
+## Ouro Performance & Polish — A0/A1 Execution Report (2026-11-06)
+
+| Item | Status | Commit | Before (release) | After (release) | Open questions |
+|---|---|---|---|---|---|
+| A0 — baseline instrumentation | Partial: JankStats and timing logs added; baseline run not possible here. | Not created: this workspace is not a Git repository. | Not measured. No running Android device was available before changes. | `app:assembleRelease` succeeded with R8 enabled, but runtime measurements are unavailable because no device is connected. | Run on a device with the specified 176-item album and 101-item video-heavy event to record first-video-thumbnail latency, event-grid jank-frame counts, and Home/Albums switch jank-frame counts. |
+| A1 — video thumbnail pipeline | Partial: implementation is in place; performance acceptance is not device-verified. | Not created: this workspace is not a Git repository. | Not measured; the required pre-change device baseline could not be collected. | Release build succeeded; thumbnail latency and blank-tile counts were not measured on-device. | Verify warm thumbnails under 100 ms after restart, cold thumbnails under 1 s, and no blank visible event tiles after settling on the real dataset. |
+
+**A0 instrumentation:** Added JankStats frame logging. Logs include `OuroPerformance` jank-frame duration and UI state (`main_tab`, `tab_switch`, and `event_grid`); successful video thumbnail requests log elapsed milliseconds and Coil data source. Jank counts and latency percentiles still require a release run on the target device.
+
+**A1 implementation:** Configured one application-wide Coil `ImageLoader` with shared memory/disk caches and a custom thumbnail `Fetcher`/`Keyer`. Added an offline `ThumbnailRepository` that persists size-specific WebP thumbnails under `cacheDir/thumbs/`, keys them by media ID, `DATE_MODIFIED`, and dimensions, refreshes visible request metadata on MediaStore changes, uses bounded four-way decoding with in-flight deduplication, chooses a non-zero video frame, and prefetches cover-first plus the initial 60 items and 30 items in the event-grid scroll direction. Gallery tile, cover, suggested-event, timeline, and video-player thumbnail surfaces now use the shared pipeline with target pixel sizes and no crossfade. Settings displays disk/memory cache usage and clears Coil plus generated thumbnail files.
+
+**Validation:** `app:assembleRelease` succeeded with R8 enabled; `app:testDebugUnitTest` passed (1 test). No runtime/device checks were possible because Android Studio reported no running devices. No changes were committed because the workspace has no Git metadata.
+
+---
+
+## Ouro Performance & Polish — A3/A4 Execution Report (2026-11-13)
+
+| Item | Status | Commit | Before (release) | After (release) | Open questions |
+|---|---|---|---|---|---|
+| A3 — album/event grid scrolling | Partial: stable lazy-item identity, content types, immutable UI models, and hardware thumbnail decoding are implemented; the Baseline Profile generator is wired but a profile was not generated. | Not created: this workspace is not a Git repository. | Not measured. The required release-device fling baseline was not available. | `app:assembleRelease`, `app:testDebugUnitTest`, and `baselineprofile:assemble` succeeded. No frame or fill-latency measurements were collected. | Run the profile generator and release benchmarks against the real 176-item “scenes” album. Verify Compose/Coil behavior in the R8 APK; a successful R8 build alone does not establish runtime behavior. |
+| A4 — capture-date ordering | Partial: capture metadata resolution/backfill and DAO sorting are implemented and build-verified; real-dataset acceptance is not verified. | Not created: this workspace is not a Git repository. | Not measured. The specified 101-item event was not benchmarked before the changes. | Release build succeeded with R8. No runtime ordering checks or performance numbers were collected. | Verify the “25-10-26 to 26-10-26” event, adding an older photo, missing `DATE_TAKEN` fallback, persistence after restart, and unchanged cover behavior on the target dataset. |
+
+**A3 implementation:** Added stable photo-reference IDs and content types to the event grid, URI keys and image/placeholder content types to the timeline, and content types to the album grid. Marked album/event UI models immutable. The existing A1 requests remain size-aware and crossfade-free; the custom thumbnail fetcher now requests immutable hardware bitmaps. The timeline date bubble already observes scroll changes through `snapshotFlow`, so it needed no modification. Added a Baseline Profile test module with Home/Albums tab navigation and connected-device profile generation configuration. The profile test/module compiles, but profile generation did not complete in the IDE task attempt; it is not claimed as generated. The required large-grid scroll journey, actual profile output, and post-R8 runtime behavior remain unverified.
+
+**A4 implementation:** Capture timestamps resolve in this order: MediaStore `DATE_TAKEN`, image EXIF `DateTimeOriginal` or video container creation date, MediaStore/file modified time, then `0` for unknown. EXIF offsets are normalized as GMT offsets when parsed. The existing `takenAt` field is reused, so there is no schema change; a DataStore guard runs an IO backfill for unknown legacy references and retries remaining unknown rows on later starts. Event, album/category, and favorite DAO queries sort newest first by `takenAt`, then media-store ID (or row ID fallback), then row ID. Event lists preserve the DAO order, and album slideshows use the album-wide DAO-ordered list. Unknown timestamps sort last. No in-composable sorting was introduced. Album cover repair remains ordered by the existing event/add position query rather than capture date, preserving the existing cover rule.
+
+**Validation and limitations:** `:app:testDebugUnitTest`, `:app:assembleRelease`, and `:baselineprofile:assemble` succeeded. The release build uses R8 optimization; no explicit project Compose/Coil keep rules were added or separately audited. The connected emulator was available, but the profile-generation request timed out and no profile output was verified. No changes were committed because the workspace has no Git metadata. Before/after latency, frame/jank counts, grid fill timing, and capture-order behavior on the owner’s media set remain unmeasured.
+
+---
+
+## A3/A4 Follow-up — 2026-11-14
+
+| Item | Status | Commit | Before (release) | After (release) | Open questions |
+|---|---|---|---|---|---|
+| A3 — album/event grid scrolling | Partial: remaining cover-picker grid requests now use the size-aware cached thumbnail pipeline; lazy items have stable keys/content types, and nested collection models no longer claim deep lists are immutable. | None: workspace has no Git metadata. | Not measured. | Not measured; no Android device is connected. `:app:assembleRelease` (R8) and `:baselineprofile:assemble` succeeded; the existing Baseline Profile test was not generated or run. | Generate/run the profile and collect fling/jank/fill timings on the 176-item “scenes” album. Verify Compose/Coil behavior on-device with R8. |
+| A4 — capture-date ordering | Partial: made timestamp fallback selection directly testable and added coverage for DATE_TAKEN, embedded capture time, modified-time fallbacks, and unknown timestamps. Existing Room `takenAt` storage and DAO sorting remain in place; no schema migration was needed. | None: workspace has no Git metadata. | Not measured. | Not measured; no Android device is connected. Five capture-date fallback tests pass as part of the six passing unit tests; release build succeeded. | Verify actual ordering, a media item without DATE_TAKEN, adding an older item, persistence after restart, and unchanged cover behavior on the specified 101-item event. |
+
+**Follow-up changes:** The album cover chooser no longer loads grid images directly at their original resolution; it uses `GalleryMediaThumbnail` with measured tile dimensions. Added primitive keys/content types to the remaining lazy album/event rows and headers. Removed `@Immutable` from `Album` and `EventMock`, which contain nested lists and are fed to lazy items, avoiding forced deep list equality under Compose strong skipping. Capture-time selection remains short-circuiting so EXIF/container and file-stat reads only run when earlier sources are unavailable.
+
+**Validation:** `:app:testDebugUnitTest` passed (6 tests), `:app:assembleRelease` passed with R8, and `:baselineprofile:assemble` passed. `adb devices -l` reported no connected devices, so performance numbers and the profile generation could not be verified in this run. No commit was created because this directory is not a Git repository.
+
+---
+
+## Connected-device check — 2026-11-14 12:56
+
+| Check | Result | Interpretation |
+|---|---|---|
+| Device/build | `sdk_gphone64_x86_64`, Android API 36, 1080×2400 emulator. `run-as com.yahshua.ouro` succeeds, so the installed app is debuggable. | Not a release/R8 runtime measurement. |
+| Dataset | The only visible album is `squad` with 6 items; its events are `suiitt` and `suiii`. The 176-item `scenes` album and 101-item `25-10-26 to 26-10-26` event are absent. | A3/A4 target acceptance cannot be reproduced on this installation. |
+| Process-wide `dumpsys gfxinfo` | 277 rendered frames; 55 janky (19.86%); p50 17 ms, p90 65 ms, p95 117 ms, p99 300 ms; 15 missed vsyncs, 41 slow UI-thread frames, 34 slow draw-command frames, 1 slow bitmap upload. | Aggregates process startup and navigation as well as gallery rendering; not a controlled grid-fling result. |
+| Startup/logcat | 32 skipped frames and one HWUI `Davey!` frame of 798 ms. JankStats also logged 211 ms, 140 ms, 90 ms and shorter jank frames during startup/tab navigation. | Debug/emulator startup noise is included; Perfetto attribution was not collected. |
+| Video thumbnail log | 497 ms and 136 ms from `DISK`; 75 ms and 74 ms from `MEMORY_CACHE`. | These are component request-to-success timings on the debug app, not isolated decode timings or the target event measurement. |
+
+**Action:** No additional code change was made from these readings: the installed build is debuggable and the required 176/101-item data is missing, so changing code based on this aggregate could misdiagnose the release workload. To finish the acceptance check, run the R8 release build with the target dataset installed (without replacing app data), then record a controlled fast-fling/frame-timing run and verify the missing-date event ordering.
+
+## Event-date ordering correction — 2026-11-14
+
+* Event cards now sort by the event's actual date instead of its creation time. Date ranges use their latest date; if an event date cannot be parsed, ordering falls back to the newest photo capture timestamp. Events with neither date sort last, with ID tie-breaking for deterministic order.
+* Both category event queries now return a neutral stable sequence; the repository applies the date ordering consistently to album and category event lists.
+* Added a versioned one-time refresh of existing photo references so timestamps previously stored from add-time metadata are re-resolved. References still missing a capture date continue to be retried.
+* **Validation:** `:app:testDebugUnitTest` passed (10 tests) and `:app:assembleRelease` succeeded. Focused tests cover explicit event dates, ranges, capture-time fallback, and unknown dates.
+* **Device limitation:** The connected emulator still lacks the target 176/101-item dataset, so its event-card ordering could not be visually verified there.

@@ -1,8 +1,10 @@
 package com.example.red_panda.data.local.entity
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
+@Immutable
 @Entity(tableName = "photo_refs")
 data class PhotoRefEntity(
     @PrimaryKey(autoGenerate = true)
@@ -10,7 +12,7 @@ data class PhotoRefEntity(
     val mediaStoreId: Long? = null,
     val contentUri: String,
     val contentHash: String = "",
-    val takenAt: Long = System.currentTimeMillis(),
+    val takenAt: Long = 0L,
     val width: Int = 0,
     val height: Int = 0,
     val isFavorite: Boolean = false,

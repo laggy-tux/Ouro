@@ -1,6 +1,7 @@
 package com.example.red_panda.ui.screens
 
 import android.net.Uri
+import com.example.red_panda.RedPandaApplication
 import com.example.red_panda.ui.components.LiquidGlassVideoPlayer
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -79,6 +80,7 @@ fun DetailScreen(
     val coverPhotoUri by viewModel.coverPhotoUri.collectAsState()
     val events by viewModel.events.collectAsState()
     val categoryPhotos by viewModel.categoryPhotos.collectAsState()
+    val app = remember(context) { context.applicationContext as RedPandaApplication }
 
     val category = categoryState
     if (category == null) {
@@ -91,6 +93,12 @@ fun DetailScreen(
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         }
         return
+    }
+
+    LaunchedEffect(category.id, coverPhotoUri, categoryPhotos, events) {
+        val initialMedia = events.mapNotNull { it.photoUris.firstOrNull() } +
+            categoryPhotos.take(60).map { it.contentUri }
+        app.thumbnailRepository.prefetchAlbum(coverPhotoUri, initialMedia)
     }
 
     var selectedPlaceFilter by remember { mutableStateOf("Places") }
@@ -112,9 +120,8 @@ fun DetailScreen(
         }
     }
 
-    val allPhotoUris = remember(events, categoryPhotos) {
-        val eventUris = events.flatMap { it.photoUris }
-        if (eventUris.isNotEmpty()) eventUris else categoryPhotos.map { it.contentUri }
+    val allPhotoUris = remember(categoryPhotos) {
+        categoryPhotos.map { it.contentUri }
     }
 
     var showEditCategoryDialog by remember { mutableStateOf(false) }
@@ -254,7 +261,7 @@ fun DetailScreen(
                 contentPadding = PaddingValues(bottom = 32.dp)
             ) {
                 // Hero Cover Header
-                item {
+                item(key = "album_hero", contentType = "album_hero") {
                     HeroHeader(
                         title = category.name,
                         photoCount = totalPhotoCount,
@@ -272,7 +279,7 @@ fun DetailScreen(
                 }
 
                 // Floating Filter Card displayed below the cover image (compact size, truly floating)
-                item {
+                item(key = "album_filters", contentType = "album_filters") {
                     Spacer(modifier = Modifier.height(14.dp))
                     Box(
                         modifier = Modifier.fillMaxWidth(),
@@ -292,7 +299,7 @@ fun DetailScreen(
 
                 // Events List or Empty State
                 if (filteredEvents.isEmpty()) {
-                    item {
+                    item(key = "empty_events", contentType = "empty_events") {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -362,7 +369,11 @@ fun DetailScreen(
                         }
                     }
                 } else {
-                    items(filteredEvents, key = { it.id }) { event ->
+                    items(
+                        items = filteredEvents,
+                        key = { it.id },
+                        contentType = { "album_event" }
+                    ) { event ->
                         EventSectionRow(
                             event = event,
                             onEventClick = { onEventClick(event.id) },
@@ -1189,7 +1200,11 @@ fun CoverEditDialog(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        items(categoryPhotos) { photo ->
+                        items(
+                            items = categoryPhotos,
+                            key = { photo -> photo.id },
+                            contentType = { "cover_photo" }
+                        ) { photo ->
                             Box(
                                 modifier = Modifier
                                     .aspectRatio(1f)
@@ -1199,12 +1214,9 @@ fun CoverEditDialog(
                                         onDismiss()
                                     }
                             ) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
-                                        .data(photo.contentUri)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = null,
+                                GalleryMediaThumbnail(
+                                    uri = photo.contentUri,
+                                    isVideo = false,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
                                 )

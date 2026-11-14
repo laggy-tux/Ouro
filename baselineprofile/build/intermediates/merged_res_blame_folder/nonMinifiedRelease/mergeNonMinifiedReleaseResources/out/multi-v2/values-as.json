@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.example.red_panda.baselineprofile-mergeNonMinifiedReleaseResources-16:/values-as/values-as.xml",
+            "map": [
+                {
+                    "source": "/home/joy/.gradle/caches/9.6.0/transforms/ed38b8eed580f6df54a9fff56881d072/transformed/core-1.9.0/res/values-as/values-as.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "100",
+                        "endOffsets": "151"
+                    }
+                }
+            ]
+        }
+    ]
+}

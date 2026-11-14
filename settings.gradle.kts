@@ -17,4 +17,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Red-panda"
-include(":app")
+include(":app", ":baselineprofile")

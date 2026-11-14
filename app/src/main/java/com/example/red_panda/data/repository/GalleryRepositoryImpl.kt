@@ -2,17 +2,18 @@ package com.example.red_panda.data.repository
 
 import android.content.Context
 import com.example.red_panda.data.local.MediaStoreHelper
+import com.example.red_panda.data.local.MediaCaptureDateResolver
+import com.example.red_panda.data.local.entity.PhotoRefEntity
+import androidx.datastore.preferences.core.edit
 import com.example.red_panda.data.local.dao.CategoryDao
 import com.example.red_panda.data.local.dao.EventDao
 import com.example.red_panda.data.local.dao.PhotoDao
 import com.example.red_panda.data.local.entity.CategoryEntity
 import com.example.red_panda.data.local.entity.EventEntity
 import com.example.red_panda.data.local.entity.EventPhotoEntity
-import com.example.red_panda.data.local.entity.PhotoRefEntity
 import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.EventMock
 import com.example.red_panda.ui.model.SuggestedEvent
-import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -21,12 +22,56 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
+private const val CAPTURE_DATE_BACKFILL_VERSION_CURRENT = 2
+
 class GalleryRepositoryImpl(
     private val context: Context,
     private val categoryDao: CategoryDao,
     private val eventDao: EventDao,
     private val photoDao: PhotoDao
 ) : GalleryRepository {
+    private val captureDateResolver = MediaCaptureDateResolver(context.contentResolver)
+
+    suspend fun backfillPhotoCaptureDates() = withContext(Dispatchers.IO) {
+        val backfillVersion = context.dataStore.data.first()[CAPTURE_DATE_BACKFILL_VERSION] ?: 0
+        val refreshAllPhotos = backfillVersion < CAPTURE_DATE_BACKFILL_VERSION_CURRENT
+        val photos = if (refreshAllPhotos) {
+            photoDao.getAllPhotosSync()
+        } else {
+            photoDao.getPhotosNeedingCaptureDateBackfill()
+        }
+
+        photos.forEach { photo ->
+            val metadata = captureDateResolver.resolve(photo.contentUri)
+            val takenAt = metadata.takenAt
+            val mediaStoreId = metadata.mediaStoreId ?: photo.mediaStoreId
+            if (takenAt != photo.takenAt || mediaStoreId != photo.mediaStoreId) {
+                photoDao.updatePhoto(photo.copy(takenAt = takenAt, mediaStoreId = mediaStoreId))
+            }
+        }
+
+        if (refreshAllPhotos) {
+            context.dataStore.edit { preferences ->
+                preferences[CAPTURE_DATE_BACKFILL_VERSION] = CAPTURE_DATE_BACKFILL_VERSION_CURRENT
+            }
+        }
+    }
+
+    private fun createPhotoReference(
+        uri: String,
+        contentHash: String = "",
+        isFavorite: Boolean = false,
+        fallbackTakenAt: Long = 0L
+    ): PhotoRefEntity {
+        val metadata = captureDateResolver.resolve(uri)
+        return PhotoRefEntity(
+            mediaStoreId = metadata.mediaStoreId,
+            contentUri = uri,
+            contentHash = contentHash,
+            takenAt = metadata.takenAt.takeIf { it > 0L } ?: fallbackTakenAt,
+            isFavorite = isFavorite
+        )
+    }
 
     private fun resolveCoverPhotoUri(category: CategoryEntity): String? {
         if (category.coverPhotoId != null) {
@@ -35,7 +80,7 @@ class GalleryRepositoryImpl(
                 return customCover.contentUri
             }
         }
-        val categoryPhotos = photoDao.getPhotosForCategorySync(category.id)
+        val categoryPhotos = photoDao.getPhotosForCategoryInAddedOrderSync(category.id)
         for (photo in categoryPhotos) {
             if (MediaStoreHelper.isUriAccessible(context, photo.contentUri)) {
                 if (category.coverPhotoId != photo.id || category.coverPhotoIsManual) {
@@ -69,13 +114,29 @@ class GalleryRepositoryImpl(
         )
     }
 
+    private data class EventWithPhotos(
+        val event: EventEntity,
+        val photos: List<PhotoRefEntity>,
+        val sortDateMillis: Long
+    )
+
+    private fun toEventMocksOrderedByDate(events: List<EventEntity>): List<EventMock> =
+        events.map { event ->
+            val photos = photoDao.getPhotosForEventSync(event.id)
+            EventWithPhotos(
+                event = event,
+                photos = photos,
+                sortDateMillis = eventDateSortMillis(event.date, photos.map { it.takenAt }) ?: Long.MIN_VALUE
+            )
+        }
+            .sortedWith(compareByDescending<EventWithPhotos> { it.sortDateMillis }.thenBy { it.event.id })
+            .map { eventWithPhotos -> toEventMock(eventWithPhotos.event, eventWithPhotos.photos) }
+
     override fun getAlbums(): Flow<List<Album>> {
         return categoryDao.getAllCategories().map { categories ->
             categories.map { category ->
                 val events = eventDao.getEventsForCategorySync(category.id)
-                val eventMocks = events.map { event ->
-                    toEventMock(event, photoDao.getPhotosForEventSync(event.id))
-                }
+                val eventMocks = toEventMocksOrderedByDate(events)
                 val totalPhotoCount = if (eventMocks.isNotEmpty()) eventMocks.sumOf { it.totalPhotos } else 0
                 val resolvedCoverUri = resolveCoverPhotoUri(category)
 
@@ -110,11 +171,7 @@ class GalleryRepositoryImpl(
 
     override fun getEventsForCategory(categoryId: Long): Flow<List<EventMock>> {
         return eventDao.getEventsForCategory(categoryId)
-            .map { events ->
-                events.map { event ->
-                    toEventMock(event, photoDao.getPhotosForEventSync(event.id))
-                }
-            }
+            .map(::toEventMocksOrderedByDate)
             .flowOn(Dispatchers.IO)
     }
 
@@ -173,11 +230,7 @@ class GalleryRepositoryImpl(
                 existingPhoto.id
             } else {
                 val hash = MediaStoreHelper.calculateContentHash(context, uri)
-                val newPhoto = PhotoRefEntity(
-                    contentUri = uri,
-                    contentHash = hash,
-                    takenAt = System.currentTimeMillis()
-                )
+                val newPhoto = createPhotoReference(uri, hash)
                 photoDao.insertPhoto(newPhoto)
             }
             val updated = existing.copy(coverPhotoId = photoId, coverPhotoIsManual = true)
@@ -260,13 +313,7 @@ class GalleryRepositoryImpl(
                     existingPhoto.id
                 } else {
                     val hash = MediaStoreHelper.calculateContentHash(context, uri)
-                    photoDao.insertPhoto(
-                        PhotoRefEntity(
-                            contentUri = uri,
-                            contentHash = hash,
-                            takenAt = System.currentTimeMillis()
-                        )
-                    )
+                    photoDao.insertPhoto(createPhotoReference(uri, hash))
                 }
                 val insertion = photoDao.insertEventPhoto(
                     EventPhotoEntity(
@@ -358,13 +405,7 @@ class GalleryRepositoryImpl(
             if (photo != null) {
                 photoDao.updatePhoto(photo.copy(isFavorite = !photo.isFavorite))
             } else {
-                photoDao.insertPhoto(
-                    PhotoRefEntity(
-                        contentUri = contentUri,
-                        isFavorite = true,
-                        takenAt = System.currentTimeMillis()
-                    )
-                )
+                photoDao.insertPhoto(createPhotoReference(contentUri, isFavorite = true))
             }
             Unit
         }
@@ -376,13 +417,7 @@ class GalleryRepositoryImpl(
                 if (photo != null) {
                     photoDao.updatePhoto(photo.copy(isFavorite = isFavorite))
                 } else if (isFavorite) {
-                    photoDao.insertPhoto(
-                        PhotoRefEntity(
-                            contentUri = uri,
-                            isFavorite = true,
-                            takenAt = System.currentTimeMillis()
-                        )
-                    )
+                    photoDao.insertPhoto(createPhotoReference(uri, isFavorite = true))
                 }
             }
         }
@@ -489,18 +524,18 @@ class GalleryRepositoryImpl(
                             val photoObj = photosJson.getJSONObject(k)
                             val contentUri = photoObj.optString("contentUri")
                             val contentHash = photoObj.optString("contentHash")
-                            val takenAt = photoObj.optLong("takenAt", System.currentTimeMillis())
+                            val takenAt = photoObj.optLong("takenAt", 0L)
                             val photoFav = photoObj.optBoolean("isFavorite", false)
 
                             if (contentUri.isNotEmpty()) {
                                 val existing = photoDao.getPhotoByUri(contentUri)
                                 val photoId = if (existing == null) {
                                     photoDao.insertPhoto(
-                                        PhotoRefEntity(
-                                            contentUri = contentUri,
+                                        createPhotoReference(
+                                            uri = contentUri,
                                             contentHash = contentHash,
-                                            takenAt = takenAt,
-                                            isFavorite = photoFav
+                                            isFavorite = photoFav,
+                                            fallbackTakenAt = takenAt
                                         )
                                     )
                                 } else {

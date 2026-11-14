@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -35,6 +36,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import coil.annotation.ExperimentalCoilApi
 import coil.imageLoader
 import androidx.compose.ui.graphics.luminance
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import android.text.format.Formatter
+import com.example.red_panda.RedPandaApplication
 import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.data.local.PhotoAccessState
 import com.example.red_panda.data.repository.ThemeSetting
@@ -50,6 +57,19 @@ fun SettingsScreen(
     val themeSetting by viewModel.themeSetting.collectAsState()
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+    val app = remember(context) { context.applicationContext as RedPandaApplication }
+    var cacheSizeText by remember { mutableStateOf("Calculating…") }
+
+    LaunchedEffect(context) {
+        val imageLoader = context.imageLoader
+        val cacheBytes = withContext(Dispatchers.IO) {
+            app.thumbnailRepository.cacheSizeBytes() + (imageLoader.diskCache?.size ?: 0L)
+        }
+        val memoryBytes = imageLoader.memoryCache?.size ?: 0
+        cacheSizeText = "${Formatter.formatShortFileSize(context, cacheBytes)} on disk • " +
+            "${Formatter.formatShortFileSize(context, memoryBytes.toLong())} in memory"
+    }
 
     var accessState by remember { mutableStateOf(MediaStoreHelper.getPhotoAccessState(context)) }
 
@@ -248,16 +268,37 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Coil disk and memory cache speeds up photo grid loading.",
+                        text = "Resized photo and video thumbnails are stored on this device for faster repeat loading.",
                         fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Cache size: $cacheSizeText",
+                        fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedButton(
                         onClick = {
-                            context.imageLoader.diskCache?.clear()
-                            context.imageLoader.memoryCache?.clear()
-                            Toast.makeText(context, "Cache cleared", Toast.LENGTH_SHORT).show()
+                            coroutineScope.launch {
+                                val imageLoader = context.imageLoader
+                                try {
+                                    withContext(Dispatchers.IO) {
+                                        imageLoader.diskCache?.clear()
+                                        app.thumbnailRepository.clearCache()
+                                    }
+                                    imageLoader.memoryCache?.clear()
+                                    cacheSizeText = "${Formatter.formatShortFileSize(context, 0L)} on disk • " +
+                                        "${Formatter.formatShortFileSize(context, 0L)} in memory"
+                                    Toast.makeText(context, "Image and video thumbnail cache cleared", Toast.LENGTH_SHORT).show()
+                                } catch (exception: CancellationException) {
+                                    throw exception
+                                } catch (exception: Exception) {
+                                    Log.e(TAG, "Unable to clear the image and video thumbnail caches.", exception)
+                                    Toast.makeText(context, "Could not clear the image cache", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         }
                     ) {
                         Text("Clear Image Cache")
@@ -387,6 +428,8 @@ fun SettingsScreen(
         }
     }
 }
+
+private const val TAG = "SettingsScreen"
 
 @Composable
 private fun SettingsSectionHeader(

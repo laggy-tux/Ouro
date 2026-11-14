@@ -6,20 +6,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface EventDao {
-    @Query("""
-        SELECT DISTINCT events.* FROM events
-        LEFT JOIN event_photos ON event_photos.eventId = events.id
-        WHERE events.categoryId = :categoryId
-        ORDER BY events.createdAt DESC
-    """)
+    @Query("SELECT * FROM events WHERE categoryId = :categoryId ORDER BY id ASC")
     fun getEventsForCategory(categoryId: Long): Flow<List<EventEntity>>
 
-    @Query("""
-        SELECT DISTINCT events.* FROM events
-        LEFT JOIN event_photos ON event_photos.eventId = events.id
-        WHERE events.categoryId = :categoryId
-        ORDER BY events.createdAt DESC
-    """)
+    @Query("SELECT * FROM events WHERE categoryId = :categoryId ORDER BY id ASC")
     fun getEventsForCategorySync(categoryId: Long): List<EventEntity>
 
     @Query("SELECT * FROM events WHERE id = :id")

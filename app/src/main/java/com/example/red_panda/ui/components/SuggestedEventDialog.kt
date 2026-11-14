@@ -1,5 +1,6 @@
 package com.example.red_panda.ui.components
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -25,8 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import com.example.red_panda.ui.screens.GalleryMediaThumbnail
 import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.SuggestedEvent
 
@@ -107,11 +107,12 @@ fun SuggestedEventDialog(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         suggested.sampleUris.take(4).forEach { uri ->
-                            AsyncImage(
-                                model = ImageRequest.Builder(context)
-                                    .data(uri)
-                                    .size(150, 150)
-                                    .build(),
+                            val isVideo = remember(uri) {
+                                context.contentResolver.getType(Uri.parse(uri))?.startsWith("video/") == true
+                            }
+                            GalleryMediaThumbnail(
+                                uri = uri,
+                                isVideo = isVideo,
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier

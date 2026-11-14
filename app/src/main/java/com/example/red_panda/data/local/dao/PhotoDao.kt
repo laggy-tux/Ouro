@@ -11,7 +11,7 @@ interface PhotoDao {
         SELECT p.* FROM photo_refs p 
         INNER JOIN event_photos ep ON p.id = ep.photoId 
         WHERE ep.eventId = :eventId 
-        ORDER BY ep.position ASC
+        ORDER BY p.takenAt DESC, COALESCE(p.mediaStoreId, p.id) DESC, p.id DESC
     """)
     fun getPhotosForEvent(eventId: Long): Flow<List<PhotoRefEntity>>
 
@@ -19,7 +19,7 @@ interface PhotoDao {
         SELECT p.* FROM photo_refs p 
         INNER JOIN event_photos ep ON p.id = ep.photoId 
         WHERE ep.eventId = :eventId 
-        ORDER BY ep.position ASC
+        ORDER BY p.takenAt DESC, COALESCE(p.mediaStoreId, p.id) DESC, p.id DESC
     """)
     fun getPhotosForEventSync(eventId: Long): List<PhotoRefEntity>
 
@@ -32,6 +32,15 @@ interface PhotoDao {
         LIMIT 1
     """)
     fun getEarliestPhotoForCategorySync(categoryId: Long): PhotoRefEntity?
+
+    @Query("""
+        SELECT p.* FROM photo_refs p
+        INNER JOIN event_photos ep ON p.id = ep.photoId
+        INNER JOIN events e ON ep.eventId = e.id
+        WHERE e.categoryId = :categoryId
+        ORDER BY e.createdAt ASC, e.id ASC, ep.position ASC
+    """)
+    fun getPhotosForCategoryInAddedOrderSync(categoryId: Long): List<PhotoRefEntity>
 
     @Query("""
         SELECT EXISTS(
@@ -50,7 +59,7 @@ interface PhotoDao {
         INNER JOIN event_photos ep ON p.id = ep.photoId
         INNER JOIN events e ON ep.eventId = e.id
         WHERE e.categoryId = :categoryId
-        ORDER BY p.takenAt DESC
+        ORDER BY p.takenAt DESC, COALESCE(p.mediaStoreId, p.id) DESC, p.id DESC
     """)
     fun getPhotosForCategorySync(categoryId: Long): List<PhotoRefEntity>
 
@@ -59,7 +68,7 @@ interface PhotoDao {
         INNER JOIN event_photos ep ON p.id = ep.photoId
         INNER JOIN events e ON ep.eventId = e.id
         WHERE e.categoryId = :categoryId
-        ORDER BY p.takenAt DESC
+        ORDER BY p.takenAt DESC, COALESCE(p.mediaStoreId, p.id) DESC, p.id DESC
     """)
     fun getPhotosForCategory(categoryId: Long): Flow<List<PhotoRefEntity>>
 
@@ -107,6 +116,9 @@ interface PhotoDao {
     @Query("SELECT * FROM photo_refs")
     fun getAllPhotosSync(): List<PhotoRefEntity>
 
+    @Query("SELECT * FROM photo_refs WHERE takenAt = 0")
+    fun getPhotosNeedingCaptureDateBackfill(): List<PhotoRefEntity>
+
     @Query("UPDATE photo_refs SET isFavorite = :isFavorite WHERE id = :photoId")
     fun updateFavorite(photoId: Long, isFavorite: Boolean)
 
@@ -119,7 +131,7 @@ interface PhotoDao {
     @Query("SELECT contentUri FROM photo_refs WHERE isFavorite = 1")
     fun getFavoritePhotoUrisSync(): List<String>
 
-    @Query("SELECT * FROM photo_refs WHERE isFavorite = 1 ORDER BY takenAt DESC")
+    @Query("SELECT * FROM photo_refs WHERE isFavorite = 1 ORDER BY takenAt DESC, COALESCE(mediaStoreId, id) DESC, id DESC")
     fun getFavoritePhotosFlow(): Flow<List<PhotoRefEntity>>
 
     @Query("DELETE FROM photo_refs WHERE id = :photoId")

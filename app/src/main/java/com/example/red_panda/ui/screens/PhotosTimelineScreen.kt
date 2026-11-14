@@ -870,8 +870,14 @@ fun PhotosTimelineScreen(
                             count = timelineItems.itemCount,
                             key = { index ->
                                 when (val item = timelineItems[index]) {
-                                    is TimelineItem.Photo -> "photo_${item.photo.id}"
+                                    is TimelineItem.Photo -> "photo_${item.photo.contentUri}"
                                     null -> "placeholder_$index"
+                                }
+                            },
+                            contentType = { index ->
+                                when (timelineItems[index]) {
+                                    is TimelineItem.Photo -> "photo"
+                                    null -> "placeholder"
                                 }
                             }
                         ) { index ->

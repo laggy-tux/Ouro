@@ -202,7 +202,11 @@ fun AddToEventDialog(
                                 .height(eventListHeight)
                                 .weight(1f, fill = false)
                         ) {
-                            items(allEvents) { (album, event) ->
+                            items(
+                                items = allEvents,
+                                key = { it.second.id },
+                                contentType = { "event_option" }
+                            ) { (album, event) ->
                                 val eventId = event.id.toLongOrNull() ?: -1L
                                 val isSelected = selectedEventId == eventId
                                 Card(
@@ -295,7 +299,11 @@ fun AddToEventDialog(
                                     .fillMaxWidth()
                                     .heightIn(max = 112.dp)
                             ) {
-                                items(albums) { album ->
+                                items(
+                                    items = albums,
+                                    key = { it.id },
+                                    contentType = { "album_option" }
+                                ) { album ->
                                     val categoryId = album.id.toLongOrNull()
                                     Row(
                                         modifier = Modifier

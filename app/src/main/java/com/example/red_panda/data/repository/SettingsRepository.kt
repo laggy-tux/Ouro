@@ -38,6 +38,7 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
 )
 internal val DISMISSED_SUGGESTION_IDS = stringSetPreferencesKey("dismissed_suggestion_ids")
 internal val EXCLUDED_MEDIA_FOLDER_IDS = stringSetPreferencesKey("excluded_media_folder_ids")
+internal val CAPTURE_DATE_BACKFILL_VERSION = intPreferencesKey("capture_date_backfill_version")
 
 enum class ThemeSetting {
     SYSTEM, LIGHT, DARK

@@ -19,12 +19,14 @@ import androidx.lifecycle.lifecycleScope
 import com.example.red_panda.data.repository.SettingsRepositoryImpl
 import com.example.red_panda.data.repository.ThemeSetting
 import com.example.red_panda.ui.navigation.NavGraph
+import com.example.red_panda.ui.performance.OuroPerformanceMonitor
 import com.example.red_panda.ui.theme.RedpandaTheme
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val startupThemeSetting = mutableStateOf<ThemeSetting?>(null)
     private var startupThemeLoaded = false
+    private var performanceMonitor: OuroPerformanceMonitor? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -73,5 +75,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        performanceMonitor = OuroPerformanceMonitor(window)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        performanceMonitor?.jankStats?.isTrackingEnabled = true
+    }
+
+    override fun onPause() {
+        performanceMonitor?.jankStats?.isTrackingEnabled = false
+        super.onPause()
     }
 }

@@ -56,8 +56,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import androidx.compose.ui.graphics.luminance
 import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.data.local.PhotoAccessState
@@ -405,7 +403,11 @@ fun HomeScreen(
             ) {
                 if (selectedAlbumSection == null) when (photoAccessState) {
                     PhotoAccessState.PARTIAL -> {
-                        item(span = { GridItemSpan(columns) }) {
+                        item(
+                            key = "photo_access_partial",
+                            span = { GridItemSpan(columns) },
+                            contentType = "permission_notice"
+                        ) {
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -450,7 +452,11 @@ fun HomeScreen(
                         }
                     }
                     PhotoAccessState.DENIED -> {
-                        item(span = { GridItemSpan(columns) }) {
+                        item(
+                            key = "photo_access_denied",
+                            span = { GridItemSpan(columns) },
+                            contentType = "permission_notice"
+                        ) {
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -495,7 +501,11 @@ fun HomeScreen(
                     photoAccessState != PhotoAccessState.DENIED &&
                     suggestedEvents.isNotEmpty()
                 ) {
-                    item(span = { GridItemSpan(columns) }) {
+                    item(
+                        key = "suggested_events",
+                        span = { GridItemSpan(columns) },
+                        contentType = "suggested_events"
+                    ) {
                         SuggestedEventsSection(
                             suggestedEvents = suggestedEvents,
                             onCreateSuggestedEvent = { suggested ->
@@ -519,7 +529,11 @@ fun HomeScreen(
                     else albumSections.filter { it.first == selectedAlbumSection }
 
                 visibleSections.forEach { (sectionName, sectionAlbums) ->
-                    item(span = { GridItemSpan(columns) }) {
+                    item(
+                        key = "album_section:$sectionName",
+                        span = { GridItemSpan(columns) },
+                        contentType = "album_section_header"
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -547,7 +561,11 @@ fun HomeScreen(
                         }
                     }
 
-                    items(sectionAlbums, key = { album -> "$sectionName:${album.id}" }) { album ->
+                    items(
+                        items = sectionAlbums,
+                        key = { album -> "$sectionName:${album.id}" },
+                        contentType = { "album" }
+                    ) { album ->
                         Box(
                             modifier = Modifier
                                 .animateItem()
@@ -580,8 +598,14 @@ fun AlbumCard(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
     val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val hasCover = !album.coverPhotoUri.isNullOrBlank()
+    val coverIsVideo = remember(album.coverPhotoUri) {
+        album.coverPhotoUri?.let { uri ->
+            context.contentResolver.getType(Uri.parse(uri))?.startsWith("video/") == true
+        } ?: false
+    }
 
     Box(
         modifier = Modifier
@@ -598,11 +622,9 @@ fun AlbumCard(
             )
     ) {
         if (hasCover) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(album.coverPhotoUri)
-                    .crossfade(true)
-                    .build(),
+            GalleryMediaThumbnail(
+                uri = album.coverPhotoUri.orEmpty(),
+                isVideo = coverIsVideo,
                 contentDescription = album.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
@@ -806,7 +828,11 @@ fun SuggestedEventsSection(
                     flingBehavior = rememberSnapFlingBehavior(lazyListState = listState),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(suggestedEvents, key = { it.id }) { suggested ->
+                    items(
+                        items = suggestedEvents,
+                        key = { it.id },
+                        contentType = { "suggested_event" }
+                    ) { suggested ->
                         SuggestedEventCard(
                             suggested = suggested,
                             cardWidth = cardWidth,
@@ -827,6 +853,8 @@ fun SuggestedEventCard(
     onCreateClick: () -> Unit,
     onDismissClick: () -> Unit
 ) {
+    val context = LocalContext.current
+
     Card(
         modifier = Modifier.width(cardWidth),
         shape = RoundedCornerShape(16.dp),
@@ -871,6 +899,9 @@ fun SuggestedEventCard(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 suggested.sampleUris.take(3).forEach { uri ->
+                    val isVideo = remember(uri) {
+                        context.contentResolver.getType(Uri.parse(uri))?.startsWith("video/") == true
+                    }
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -878,11 +909,9 @@ fun SuggestedEventCard(
                             .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(uri)
-                                .crossfade(true)
-                                .build(),
+                        GalleryMediaThumbnail(
+                            uri = uri,
+                            isVideo = isVideo,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
