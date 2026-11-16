@@ -436,18 +436,33 @@ fun PhotosTimelineScreen(
                                 coroutineScope.launch {
                                     try {
                                         val uris = withContext(Dispatchers.IO) {
-                                            MediaStoreHelper.fetchImageUrisForDate(context, date)
+                                            val fetchedUris = MediaStoreHelper.fetchMediaUrisForDate(
+                                                context = context,
+                                                date = date,
+                                                excludedFolderIds = excludedMediaFolderIds
+                                            )
+                                            when (viewModel.activeFilter) {
+                                                PhotoFilter.FAVORITES_ONLY -> {
+                                                    val favs = viewModel.favoritePhotoUris.value
+                                                    fetchedUris.filter { it in favs }
+                                                }
+                                                PhotoFilter.UNTAGGED_ONLY -> {
+                                                    val tagged = viewModel.taggedPhotoUris.value
+                                                    fetchedUris.filter { it !in tagged }
+                                                }
+                                                else -> fetchedUris
+                                            }
                                         }
                                         if (uris.isNotEmpty()) {
                                             viewModel.selectAllPhotos(uris)
                                         } else {
-                                            snackbarHostState.showSnackbar("No images found for this day.")
+                                            snackbarHostState.showSnackbar("No media found for this day.")
                                         }
                                     } catch (exception: CancellationException) {
                                         throw exception
                                     } catch (exception: Exception) {
                                         snackbarHostState.showSnackbar(
-                                            exception.localizedMessage ?: "Unable to select images for this day."
+                                            exception.localizedMessage ?: "Unable to select media for this day."
                                         )
                                     }
                                 }

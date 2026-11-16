@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
@@ -65,6 +66,7 @@ import com.example.red_panda.data.local.entity.PhotoRefEntity
 import com.example.red_panda.ui.components.CategoryDialog
 import com.example.red_panda.ui.components.ConfirmDeleteDialog
 import com.example.red_panda.ui.components.EventDialog
+import com.example.red_panda.ui.components.MoveEventDialog
 import com.example.red_panda.ui.components.popupButtonColors
 import com.example.red_panda.ui.model.EventMock
 import com.example.red_panda.ui.viewmodel.DetailViewModel
@@ -80,6 +82,7 @@ fun DetailScreen(
     val coverPhotoUri by viewModel.coverPhotoUri.collectAsState()
     val events by viewModel.events.collectAsState()
     val categoryPhotos by viewModel.categoryPhotos.collectAsState()
+    val allAlbums by viewModel.allAlbums.collectAsState()
     val app = remember(context) { context.applicationContext as RedPandaApplication }
 
     val category = categoryState
@@ -131,15 +134,17 @@ fun DetailScreen(
     var showCreateEventDialog by remember { mutableStateOf(false) }
     var eventToEdit by remember { mutableStateOf<EventMock?>(null) }
     var eventToDelete by remember { mutableStateOf<EventMock?>(null) }
+    var eventToMove by remember { mutableStateOf<EventMock?>(null) }
 
     // Predictive back gestures for open dialogs or active filters
-    BackHandler(enabled = showCreateEventDialog || eventToEdit != null || eventToDelete != null || showCoverEditDialog || showDeleteCategoryDialog || showEditCategoryDialog || showSlideshow) {
+    BackHandler(enabled = showCreateEventDialog || eventToEdit != null || eventToDelete != null || eventToMove != null || showCoverEditDialog || showDeleteCategoryDialog || showEditCategoryDialog || showSlideshow) {
         if (showSlideshow) {
             showSlideshow = false
         } else {
             showCreateEventDialog = false
             eventToEdit = null
             eventToDelete = null
+            eventToMove = null
             showCoverEditDialog = false
             showDeleteCategoryDialog = false
             showEditCategoryDialog = false
@@ -159,10 +164,7 @@ fun DetailScreen(
         CoverEditDialog(
             categoryPhotos = remember(categoryPhotos) {
                 categoryPhotos.filter { photo ->
-                    runCatching {
-                        context.contentResolver.getType(Uri.parse(photo.contentUri))
-                            ?.startsWith("image/") == true
-                    }.getOrDefault(false)
+                    !MediaStoreHelper.isVideoUri(context, photo.contentUri)
                 }
             },
             onDismiss = { showCoverEditDialog = false },
@@ -239,6 +241,19 @@ fun DetailScreen(
             onConfirm = {
                 viewModel.deleteEvent(event.id)
                 eventToDelete = null
+            }
+        )
+    }
+
+    eventToMove?.let { event ->
+        MoveEventDialog(
+            eventTitle = event.title,
+            currentCategoryId = category.id,
+            albums = allAlbums,
+            onDismiss = { eventToMove = null },
+            onConfirmMove = { targetCategoryId ->
+                viewModel.moveEvent(event.id, targetCategoryId)
+                eventToMove = null
             }
         )
     }
@@ -378,6 +393,7 @@ fun DetailScreen(
                             event = event,
                             onEventClick = { onEventClick(event.id) },
                             onEditEvent = { eventToEdit = event },
+                            onMoveEvent = { eventToMove = event },
                             onDeleteEvent = { eventToDelete = event }
                         )
                     }
@@ -404,9 +420,7 @@ fun HeroHeader(
 ) {
     val context = LocalContext.current
     val coverIsVideo = remember(coverPhotoUri) {
-        coverPhotoUri?.let {
-            context.contentResolver.getType(Uri.parse(it))?.startsWith("video/") == true
-        } ?: false
+        MediaStoreHelper.isVideoUri(context, coverPhotoUri)
     }
     val headerHeight = 280.dp
     var showMenu by remember { mutableStateOf(false) }
@@ -740,6 +754,7 @@ fun EventSectionRow(
     event: EventMock,
     onEventClick: () -> Unit,
     onEditEvent: () -> Unit,
+    onMoveEvent: () -> Unit,
     onDeleteEvent: () -> Unit
 ) {
     var showContextMenu by remember { mutableStateOf(false) }
@@ -805,6 +820,14 @@ fun EventSectionRow(
                     onClick = {
                         showContextMenu = false
                         onEditEvent()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Move to Album") },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
+                    onClick = {
+                        showContextMenu = false
+                        onMoveEvent()
                     }
                 )
                 DropdownMenuItem(
@@ -944,9 +967,7 @@ fun MosaicTile(
 ) {
     val context = LocalContext.current
     val isVideo = remember(uri) {
-        uri?.let {
-            context.contentResolver.getType(Uri.parse(it))?.startsWith("video/") == true
-        } ?: false
+        MediaStoreHelper.isVideoUri(context, uri)
     }
     val isPlaceholder = uri.isNullOrBlank()
     Box(
@@ -1017,7 +1038,7 @@ fun AlbumSlideshowViewer(
 
     LaunchedEffect(isPlaying, photoUris, pagerState.currentPage) {
         val currentUri = photoUris[pagerState.currentPage]
-        val isVideo = context.contentResolver.getType(Uri.parse(currentUri))?.startsWith("video/") == true
+        val isVideo = MediaStoreHelper.isVideoUri(context, currentUri)
         if (isPlaying && !isVideo) {
             kotlinx.coroutines.delay(3000L)
             pagerState.animateScrollToPage((pagerState.currentPage + 1) % photoUris.size)
@@ -1037,7 +1058,7 @@ fun AlbumSlideshowViewer(
         ) { page ->
             val mediaUri = photoUris[page]
             val isVideo = remember(mediaUri) {
-                context.contentResolver.getType(Uri.parse(mediaUri))?.startsWith("video/") == true
+                MediaStoreHelper.isVideoUri(context, mediaUri)
             }
             val isActiveVideo = pagerState.currentPage == page
             if (isVideo) {

@@ -43,6 +43,8 @@ interface GalleryRepository {
         personTag: String
     )
 
+    suspend fun moveEvent(eventId: Long, newCategoryId: Long): Boolean
+
     suspend fun deleteEvent(eventId: Long)
 
     suspend fun addPhotosToEvent(eventId: Long, photoUris: List<String>)

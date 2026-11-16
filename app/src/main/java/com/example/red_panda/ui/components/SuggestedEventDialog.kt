@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.ui.screens.GalleryMediaThumbnail
 import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.SuggestedEvent
@@ -108,7 +109,7 @@ fun SuggestedEventDialog(
                     ) {
                         suggested.sampleUris.take(4).forEach { uri ->
                             val isVideo = remember(uri) {
-                                context.contentResolver.getType(Uri.parse(uri))?.startsWith("video/") == true
+                                MediaStoreHelper.isVideoUri(context, uri)
                             }
                             GalleryMediaThumbnail(
                                 uri = uri,

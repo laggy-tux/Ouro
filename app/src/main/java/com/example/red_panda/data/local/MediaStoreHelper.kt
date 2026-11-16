@@ -14,6 +14,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 
 enum class PhotoAccessState {
     FULL,
@@ -69,41 +70,92 @@ object MediaStoreHelper {
         return folders.values.sortedBy { it.name.lowercase(Locale.getDefault()) }
     }
 
-    fun fetchImageUrisForDate(context: Context, date: java.time.LocalDate): List<String> {
+    private val isVideoCache = ConcurrentHashMap<String, Boolean>()
+
+    fun isVideoUri(context: Context, uriString: String?): Boolean {
+        if (uriString.isNullOrBlank()) return false
+        return isVideoCache.getOrPut(uriString) {
+            when {
+                uriString.contains("/video/") -> true
+                uriString.contains("/images/") -> false
+                else -> {
+                    try {
+                        val parsed = Uri.parse(uriString)
+                        context.contentResolver.getType(parsed)?.startsWith("video/") == true
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+            }
+        }
+    }
+
+    fun fetchMediaUrisForDate(
+        context: Context,
+        date: java.time.LocalDate,
+        excludedFolderIds: Set<String> = emptySet()
+    ): List<String> {
         val zone = ZoneId.systemDefault()
         val startMillis = date.atStartOfDay(zone).toInstant().toEpochMilli()
         val endMillis = date.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val selection =
-            "(${MediaStore.Images.Media.DATE_TAKEN} >= ? AND ${MediaStore.Images.Media.DATE_TAKEN} < ?) " +
-                "OR ((${MediaStore.Images.Media.DATE_TAKEN} IS NULL OR ${MediaStore.Images.Media.DATE_TAKEN} <= 0) " +
-                "AND ${MediaStore.Images.Media.DATE_ADDED} >= ? AND ${MediaStore.Images.Media.DATE_ADDED} < ?)"
-        val selectionArgs = arrayOf(
+
+        val baseSelection =
+            "(${MediaStore.MediaColumns.DATE_TAKEN} >= ? AND ${MediaStore.MediaColumns.DATE_TAKEN} < ?) " +
+                "OR ((${MediaStore.MediaColumns.DATE_TAKEN} IS NULL OR ${MediaStore.MediaColumns.DATE_TAKEN} <= 0) " +
+                "AND ${MediaStore.MediaColumns.DATE_ADDED} >= ? AND ${MediaStore.MediaColumns.DATE_ADDED} < ?)"
+
+        val selection = if (excludedFolderIds.isNotEmpty()) {
+            "$baseSelection AND ${MediaStore.MediaColumns.BUCKET_ID} NOT IN (${excludedFolderIds.joinToString(",") { "?" }})"
+        } else {
+            baseSelection
+        }
+
+        val baseArgs = arrayOf(
             startMillis.toString(),
             endMillis.toString(),
             (startMillis / 1000L).toString(),
             (endMillis / 1000L).toString()
         )
-        val cursor = context.contentResolver.query(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            arrayOf(MediaStore.Images.Media._ID),
-            selection,
-            selectionArgs,
-            null
-        ) ?: error("MediaStore returned no cursor while selecting images by day.")
+        val selectionArgs = if (excludedFolderIds.isNotEmpty()) {
+            baseArgs + excludedFolderIds.toTypedArray()
+        } else {
+            baseArgs
+        }
 
-        return cursor.use {
-            val idColumn = it.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
-            buildList {
-                while (it.moveToNext()) {
-                    add(
-                        ContentUris.withAppendedId(
-                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                            it.getLong(idColumn)
-                        ).toString()
-                    )
+        val collections = listOf(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        )
+
+        val uris = mutableListOf<String>()
+        for (collection in collections) {
+            try {
+                context.contentResolver.query(
+                    collection,
+                    arrayOf(MediaStore.MediaColumns._ID),
+                    selection,
+                    selectionArgs,
+                    null
+                )?.use { cursor ->
+                    val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+                    while (cursor.moveToNext()) {
+                        uris.add(
+                            ContentUris.withAppendedId(
+                                collection,
+                                cursor.getLong(idColumn)
+                            ).toString()
+                        )
+                    }
                 }
+            } catch (e: Exception) {
+                Log.w(TAG, "Error querying $collection for date $date", e)
             }
         }
+        return uris
+    }
+
+    fun fetchImageUrisForDate(context: Context, date: java.time.LocalDate): List<String> {
+        return fetchMediaUrisForDate(context, date)
     }
 
     fun persistMediaReadPermission(context: Context, uri: Uri) {

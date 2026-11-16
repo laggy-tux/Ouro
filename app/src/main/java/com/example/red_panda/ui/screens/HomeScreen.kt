@@ -602,9 +602,7 @@ fun AlbumCard(
     val isDarkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val hasCover = !album.coverPhotoUri.isNullOrBlank()
     val coverIsVideo = remember(album.coverPhotoUri) {
-        album.coverPhotoUri?.let { uri ->
-            context.contentResolver.getType(Uri.parse(uri))?.startsWith("video/") == true
-        } ?: false
+        MediaStoreHelper.isVideoUri(context, album.coverPhotoUri)
     }
 
     Box(
@@ -900,7 +898,7 @@ fun SuggestedEventCard(
             ) {
                 suggested.sampleUris.take(3).forEach { uri ->
                     val isVideo = remember(uri) {
-                        context.contentResolver.getType(Uri.parse(uri))?.startsWith("video/") == true
+                        MediaStoreHelper.isVideoUri(context, uri)
                     }
                     Box(
                         modifier = Modifier

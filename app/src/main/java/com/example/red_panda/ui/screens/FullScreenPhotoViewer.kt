@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import com.example.red_panda.data.local.MediaStoreHelper
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -115,10 +116,7 @@ fun FullScreenPhotoViewer(
         isFavorite
     }
     val isCurrentVideo = remember(currentUri, videoUris) {
-        currentUri in videoUris ||
-            runCatching {
-                context.contentResolver.getType(Uri.parse(currentUri))?.startsWith("video/") == true
-            }.getOrDefault(false)
+        currentUri in videoUris || MediaStoreHelper.isVideoUri(context, currentUri)
     }
 
     Box(
@@ -139,10 +137,7 @@ fun FullScreenPhotoViewer(
             val context = LocalContext.current
             val mediaUri = photoUris[page]
             val isVideo = remember(mediaUri, videoUris) {
-                mediaUri in videoUris ||
-                    runCatching {
-                        context.contentResolver.getType(Uri.parse(mediaUri))?.startsWith("video/") == true
-                    }.getOrDefault(false)
+                mediaUri in videoUris || MediaStoreHelper.isVideoUri(context, mediaUri)
             }
             var scale by remember { mutableFloatStateOf(1f) }
             var offset by remember { mutableStateOf(Offset.Zero) }

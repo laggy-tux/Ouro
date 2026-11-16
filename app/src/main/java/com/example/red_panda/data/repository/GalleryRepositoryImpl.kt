@@ -295,6 +295,40 @@ class GalleryRepositoryImpl(
         Unit
     }
 
+    override suspend fun moveEvent(eventId: Long, newCategoryId: Long): Boolean =
+        withContext(Dispatchers.IO) {
+            val event = eventDao.getEventByIdSync(eventId) ?: return@withContext false
+            val oldCategoryId = event.categoryId
+            if (oldCategoryId == newCategoryId) return@withContext true
+
+            val targetCategory = categoryDao.getCategoryByIdSync(newCategoryId) ?: return@withContext false
+
+            val updatedEvent = event.copy(categoryId = newCategoryId)
+            eventDao.updateEvent(updatedEvent)
+
+            val oldCategory = categoryDao.getCategoryByIdSync(oldCategoryId)
+            if (oldCategory != null && oldCategory.coverPhotoId != null && !oldCategory.coverPhotoIsManual) {
+                val stillInCategory = photoDao.isPhotoInCategorySync(oldCategoryId, oldCategory.coverPhotoId)
+                if (!stillInCategory) {
+                    val fallback = photoDao.getEarliestPhotoForCategorySync(oldCategoryId)
+                    categoryDao.updateCategory(
+                        oldCategory.copy(coverPhotoId = fallback?.id, coverPhotoIsManual = false)
+                    )
+                }
+            }
+
+            if (targetCategory.coverPhotoId == null) {
+                val earliestPhoto = photoDao.getEarliestPhotoForCategorySync(newCategoryId)
+                if (earliestPhoto != null) {
+                    categoryDao.updateCategory(
+                        targetCategory.copy(coverPhotoId = earliestPhoto.id, coverPhotoIsManual = false)
+                    )
+                }
+            }
+
+            true
+        }
+
     override suspend fun deleteEvent(eventId: Long) =
         withContext(Dispatchers.IO) {
             eventDao.deleteEventById(eventId)

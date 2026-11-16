@@ -54,7 +54,8 @@ Red-panda/
         │   │       │   ├── CategoryDialog.kt     # Create/edit category dialog
         │   │       │   ├── ConfirmDeleteDialog.kt# Confirmation dialog for item deletion
         │   │       │   ├── EventDialog.kt        # Create/edit event dialog with date picker
-        │   │       │   └── FloatingPillNavigationBar.kt # Floating pill bottom navigation bar
+        │   │       │   ├── FloatingPillNavigationBar.kt # Floating pill bottom navigation bar
+        │   │       │   └── MoveEventDialog.kt    # Dialog for moving an event to another destination album
         │   │       ├── model/
         │   │       │   └── Album.kt              # UI data representation models
         │   │       ├── navigation/
@@ -481,3 +482,41 @@ Red-panda/
 * Added a versioned one-time refresh of existing photo references so timestamps previously stored from add-time metadata are re-resolved. References still missing a capture date continue to be retried.
 * **Validation:** `:app:testDebugUnitTest` passed (10 tests) and `:app:assembleRelease` succeeded. Focused tests cover explicit event dates, ranges, capture-time fallback, and unknown dates.
 * **Device limitation:** The connected emulator still lacks the target 176/101-item dataset, so its event-card ordering could not be visually verified there.
+
+---
+
+### Event Scrolling Performance, Video Day Selection & Move Event Support — 2026-11-16
+### 1. Fix Event Scrolling Lag
+* **Subcomposition & Recomposition Elimination in `GalleryMediaThumbnail`**:
+  * Removed `BoxWithConstraints` from [GalleryMediaThumbnail.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/GalleryMediaThumbnail.kt). `BoxWithConstraints` forced expensive subcomposition passes on every visible lazy tile during fast flinging.
+  * Replaced `produceState` + asynchronous ContentResolver metadata query with synchronous `app.thumbnailRepository.getOrCreateRequest(...)`. Previously, every scrolling tile started as `null`, drew an empty placeholder, dispatched an IO coroutine, queried ContentResolver, and recomposed before Coil could check memory cache. Now, `AsyncImage` mounts on frame 1 with its `ImageRequest`, allowing Coil's memory cache to hit instantaneously with zero coroutine hop, zero flash, and zero forced recomposition.
+  * Removed per-tile `mediaStoreRevision.collectAsState()`, eliminating blanket thumbnail recompositions on store notifications.
+* **Main Thread Binder / IPC Elimination**:
+  * Created `MediaStoreHelper.isVideoUri(context, uri)` backed by an in-memory `ConcurrentHashMap`. Fast path checks uri string prefixes (`/video/` vs `/images/`) in `O(1)` without IPC; other URIs query `contentResolver.getType` once and cache permanently.
+  * Replaced blocking `context.contentResolver.getType(...)` calls in `MosaicTile`, `EventSectionRow`, `HeroHeader`, `AlbumSlideshowViewer`, and `EventDetailScreen` grid items, eliminating hundreds of synchronous Binder transactions on the UI thread during scrolling.
+* **Video Thumbnail Pipeline Optimization in `ThumbnailRepository`**:
+  * Inverted decoding priority for video thumbnails in `ThumbnailRepository.createBitmap(...)`: queries Android's hardware `contentResolver.loadThumbnail(...)` first on Android Q+ (which returns in single-digit ms from MediaStore's cache), falling back to heavy `MediaMetadataRetriever` only if unavailable.
+  * Added in-memory metadata cache (`metadataCache`) for `(mediaId, dateModified)` to eliminate repeated `ContentResolver.query` invocations.
+  * Debounced and cancellable prefetch queue in `ThumbnailRepository.prefetch(...)`: cancels obsolete pending prefetch jobs on subsequent flings and returns immediately if WebP thumbnail files already exist on disk.
+  * Throttled scroll prefetch dispatch in [EventDetailScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/EventDetailScreen.kt) to fire only after scrolling at least 6 items rather than flooding background coroutines on every pixel.
+
+### 2. Fix Select Day to Include Videos
+* **Unified Image & Video Day Selection**:
+  * Updated [MediaStoreHelper.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/data/local/MediaStoreHelper.kt) with `fetchMediaUrisForDate(context, date, excludedFolderIds)` which queries both `MediaStore.Images.Media.EXTERNAL_CONTENT_URI` and `MediaStore.Video.Media.EXTERNAL_CONTENT_URI` by `DATE_TAKEN` with `DATE_ADDED` fallback and folder exclusion filtering.
+  * Updated `Select Day` button in [PhotosTimelineScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/PhotosTimelineScreen.kt) to invoke `fetchMediaUrisForDate(...)` and respect active filters (`PhotoFilter.FAVORITES_ONLY`, `PhotoFilter.UNTAGGED_ONLY`), selecting all images and videos captured on the selected day.
+  * Maintained backward-compatible `fetchImageUrisForDate` redirecting to `fetchMediaUrisForDate`.
+
+### 3. Add Ability to Move an Event to Another Album
+* **Database & Repository Support**:
+  * Added `suspend fun moveEvent(eventId: Long, newCategoryId: Long): Boolean` to [GalleryRepository.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/data/repository/GalleryRepository.kt) and implemented it in [GalleryRepositoryImpl.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/data/repository/GalleryRepositoryImpl.kt).
+  * Automatically handles category cover photo repair: if the source album's cover belonged to the moved event, falls back to the earliest remaining album photo; if destination album lacks a cover, assigns cover from the earliest moved photo.
+  * Exposed `allAlbums` StateFlow and `moveEvent` functions in [DetailViewModel.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/viewmodel/DetailViewModel.kt) and [EventDetailViewModel.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/viewmodel/EventDetailViewModel.kt).
+* **UI Components & Navigation**:
+  * Built [MoveEventDialog.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/components/MoveEventDialog.kt): displays available albums with radio selection, thumbnail/photo count indicators, highlights the current album, and enables "Move" when a different target album is selected.
+  * Added "Move to Album" action to event dropdown menus in [DetailScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/DetailScreen.kt) (`EventSectionRow`) and the top app bar menu in [EventDetailScreen.kt](file:///home/joy/Projects/red-panda/app/src/main/java/com/example/red_panda/ui/screens/EventDetailScreen.kt).
+
+### Validation
+* `:app:testDebugUnitTest`: 10 passed, 0 skipped, 0 failed.
+* `:app:assembleDebug`: Built successfully.
+* `:app:assembleRelease`: Built successfully with R8 minification and optimization enabled.
+* Rebuilt and signed release APK: `APKs/ouro-1.1.7.apk` (`versionName = "1.1.7"`, `versionCode = 5`).

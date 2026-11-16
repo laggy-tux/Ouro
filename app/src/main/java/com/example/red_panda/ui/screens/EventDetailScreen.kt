@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Delete
@@ -70,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.red_panda.RedPandaApplication
 import com.example.red_panda.ui.components.ConfirmDeleteDialog
+import com.example.red_panda.ui.components.MoveEventDialog
 import com.example.red_panda.data.local.MediaStoreHelper
 import com.example.red_panda.ui.viewmodel.EventDetailViewModel
 import kotlinx.coroutines.flow.collectLatest
@@ -85,6 +87,7 @@ fun EventDetailScreen(
 ) {
     val eventState by viewModel.event.collectAsState()
     val event = eventState
+    val allAlbums by viewModel.allAlbums.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -97,6 +100,7 @@ fun EventDetailScreen(
     var showViewer by remember { mutableStateOf(false) }
     var selectedPhotoIndex by remember { mutableIntStateOf(0) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showMoveDialog by remember { mutableStateOf(false) }
     var showMenu by remember { mutableStateOf(false) }
     var photoToRemove by remember { mutableStateOf<Long?>(null) }
 
@@ -104,7 +108,7 @@ fun EventDetailScreen(
         contract = ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
-        uris.forEach { uri -> MediaStoreHelper.persistMediaReadPermission(context, uri) }
+            uris.forEach { uri -> MediaStoreHelper.persistMediaReadPermission(context, uri) }
             val uriStrings = uris.map { it.toString() }
             viewModel.addPhotos(uriStrings)
         }
@@ -118,6 +122,22 @@ fun EventDetailScreen(
             onConfirm = {
                 viewModel.deleteEvent(onDeleted = onBackClick)
                 showDeleteDialog = false
+            }
+        )
+    }
+
+    if (showMoveDialog && event != null) {
+        val currentCategory = allAlbums.find { album -> album.events.any { it.id == event.id } }
+        MoveEventDialog(
+            eventTitle = event.title,
+            currentCategoryId = currentCategory?.id?.toLongOrNull(),
+            albums = allAlbums,
+            onDismiss = { showMoveDialog = false },
+            onConfirmMove = { targetCategoryId ->
+                showMoveDialog = false
+                viewModel.moveEvent(targetCategoryId) {
+                    onBackClick()
+                }
             }
         )
     }
@@ -169,20 +189,22 @@ fun EventDetailScreen(
         }.distinctUntilChanged().collectLatest { (isScrolling, firstVisible, lastVisible) ->
             if (isScrolling) {
                 metricsStateHolder.state?.putState("event_grid", "scrolling")
-                val upcoming = if (firstVisible >= previousFirstVisibleIndex) {
-                    val start = (lastVisible ?: firstVisible) + 1
-                    event.photoUris.drop(start).take(PREFETCH_SCROLL_ITEM_COUNT)
-                } else {
-                    event.photoUris.subList(
-                        (firstVisible - PREFETCH_SCROLL_ITEM_COUNT).coerceAtLeast(0),
-                        firstVisible.coerceAtMost(event.photoUris.size)
-                    )
+                if (kotlin.math.abs(firstVisible - previousFirstVisibleIndex) >= 6) {
+                    val upcoming = if (firstVisible >= previousFirstVisibleIndex) {
+                        val start = (lastVisible ?: firstVisible) + 1
+                        event.photoUris.drop(start).take(PREFETCH_SCROLL_ITEM_COUNT)
+                    } else {
+                        event.photoUris.subList(
+                            (firstVisible - PREFETCH_SCROLL_ITEM_COUNT).coerceAtLeast(0),
+                            firstVisible.coerceAtMost(event.photoUris.size)
+                        )
+                    }
+                    app.thumbnailRepository.prefetch(upcoming)
+                    previousFirstVisibleIndex = firstVisible
                 }
-                app.thumbnailRepository.prefetch(upcoming)
             } else {
                 metricsStateHolder.state?.removeState("event_grid")
             }
-            previousFirstVisibleIndex = firstVisible
         }
     }
 
@@ -245,6 +267,14 @@ fun EventDetailScreen(
                                         photoPickerLauncher.launch(
                                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
                                         )
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Move to Album") },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        showMoveDialog = true
                                     }
                                 )
                                 DropdownMenuItem(
@@ -355,7 +385,7 @@ fun EventDetailScreen(
                         ) { index, photo ->
                             val photoUri = photo.contentUri
                             val isVideo = remember(photoUri) {
-                                context.contentResolver.getType(Uri.parse(photoUri))?.startsWith("video/") == true
+                                MediaStoreHelper.isVideoUri(context, photoUri)
                             }
                             Box(
                                 modifier = Modifier

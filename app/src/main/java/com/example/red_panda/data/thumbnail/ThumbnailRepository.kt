@@ -12,6 +12,7 @@ import android.util.Size
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -39,9 +40,31 @@ class ThumbnailRepository(context: Context) {
     private val _mediaStoreRevision = MutableStateFlow(0L)
     val mediaStoreRevision: StateFlow<Long> = _mediaStoreRevision.asStateFlow()
     private val inFlight = ConcurrentHashMap<String, Deferred<File>>()
+    private val metadataCache = ConcurrentHashMap<String, Pair<String, Long>>()
+    private var activePrefetchJob: Job? = null
 
     fun onMediaStoreChanged() {
+        metadataCache.clear()
         _mediaStoreRevision.value += 1L
+    }
+
+    fun getOrCreateRequest(
+        uriString: String,
+        isVideo: Boolean,
+        widthPx: Int = GRID_THUMBNAIL_SIZE_PX,
+        heightPx: Int = GRID_THUMBNAIL_SIZE_PX
+    ): MediaThumbnailRequest {
+        val cached = metadataCache[uriString]
+        val mediaId = cached?.first ?: MediaThumbnailRequest.fallbackMediaId(uriString)
+        val dateModified = cached?.second ?: 0L
+        return MediaThumbnailRequest(
+            uri = uriString,
+            mediaId = mediaId,
+            dateModified = dateModified,
+            widthPx = widthPx.coerceIn(1, MAX_THUMBNAIL_DIMENSION_PX),
+            heightPx = heightPx.coerceIn(1, MAX_THUMBNAIL_DIMENSION_PX),
+            isVideo = isVideo
+        )
     }
 
     suspend fun createRequest(
@@ -73,6 +96,8 @@ class ThumbnailRepository(context: Context) {
         } catch (exception: IllegalArgumentException) {
             Log.w(TAG, "Unable to query thumbnail metadata for the selected media URI.", exception)
         }
+
+        metadataCache[uriString] = Pair(mediaId, dateModified)
 
         MediaThumbnailRequest(
             uri = uriString,
@@ -154,23 +179,31 @@ class ThumbnailRepository(context: Context) {
     }
 
     fun prefetch(uriStrings: List<String>, widthPx: Int = GRID_THUMBNAIL_SIZE_PX, heightPx: Int = GRID_THUMBNAIL_SIZE_PX) {
-        uriStrings.distinct().forEachIndexed { index, uriString ->
-            workerScope.launch {
-                try {
-                    prefetchOne(uriString, widthPx, heightPx)
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (exception: Exception) {
-                    Log.w(TAG, "Unable to prefetch upcoming thumbnail ${index + 1}.", exception)
+        val distinctUris = uriStrings.distinct()
+        if (distinctUris.isEmpty()) return
+        activePrefetchJob?.cancel()
+        activePrefetchJob = workerScope.launch {
+            distinctUris.forEachIndexed { index, uriString ->
+                launch {
+                    try {
+                        prefetchOne(uriString, widthPx, heightPx)
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        Log.w(TAG, "Unable to prefetch upcoming thumbnail ${index + 1}.", exception)
+                    }
                 }
             }
         }
     }
 
     private suspend fun prefetchOne(uriString: String, widthPx: Int, heightPx: Int) {
-        val uri = Uri.parse(uriString)
-        val isVideo = contentResolver.getType(uri)?.startsWith("video/") == true
-        val request = createRequest(uriString, isVideo, widthPx, heightPx)
+        val isVideo = com.example.red_panda.data.local.MediaStoreHelper.isVideoUri(appContext, uriString)
+        val request = getOrCreateRequest(uriString, isVideo, widthPx, heightPx)
+        val key = request.cacheKey
+        val cachedFile = File(thumbnailDirectory, "$key.webp")
+        if (cachedFile.isFile && cachedFile.length() > 0L) return
+        if (inFlight.containsKey(key)) return
         getThumbnailFile(request)
     }
 
@@ -181,6 +214,7 @@ class ThumbnailRepository(context: Context) {
     suspend fun clearCache() = withContext(Dispatchers.IO) {
         cacheMutationMutex.lock()
         try {
+            metadataCache.clear()
             val pendingJobs = inFlight.values.toList()
             pendingJobs.forEach { it.cancel() }
             pendingJobs.forEach { it.cancelAndJoin() }
@@ -199,8 +233,8 @@ class ThumbnailRepository(context: Context) {
         val uri = Uri.parse(request.uri)
         val requestedSize = Size(request.widthPx, request.heightPx)
         val bitmap = if (request.isVideo) {
-            decodeVideoFrame(uri, requestedSize)
-                ?: loadPlatformThumbnail(uri, requestedSize)
+            loadPlatformThumbnail(uri, requestedSize)
+                ?: decodeVideoFrame(uri, requestedSize)
                 ?: error("No video thumbnail could be decoded for ${request.cacheKey}.")
         } else {
             loadPlatformThumbnail(uri, requestedSize)

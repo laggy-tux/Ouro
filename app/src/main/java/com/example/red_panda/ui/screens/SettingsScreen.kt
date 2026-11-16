@@ -413,7 +413,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Version 1.0.0 (Phase 10 Polish)",
+                        text = "Version 1.1.7",
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

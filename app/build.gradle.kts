@@ -15,14 +15,15 @@ android {
         applicationId = "com.yahshua.ouro"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.1.5"
+        versionCode = 5
+        versionName = "1.1.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("debug")
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")

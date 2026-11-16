@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.red_panda.data.local.entity.CategoryEntity
 import com.example.red_panda.data.local.entity.PhotoRefEntity
 import com.example.red_panda.data.repository.GalleryRepository
+import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.EventMock
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +34,13 @@ class DetailViewModel(
         )
 
     val events: StateFlow<List<EventMock>> = repository.getEventsForCategory(categoryId)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val allAlbums: StateFlow<List<Album>> = repository.getAlbums()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
@@ -122,6 +130,14 @@ class DetailViewModel(
                 placeTag = placeTag,
                 personTag = personTag
             )
+        }
+    }
+
+    fun moveEvent(eventId: String, targetCategoryId: Long, onMoved: (() -> Unit)? = null) {
+        viewModelScope.launch {
+            val id = eventId.toLongOrNull() ?: return@launch
+            repository.moveEvent(id, targetCategoryId)
+            onMoved?.invoke()
         }
     }
 

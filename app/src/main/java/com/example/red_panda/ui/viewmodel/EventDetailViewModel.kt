@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.red_panda.data.repository.GalleryRepository
+import com.example.red_panda.ui.model.Album
 import com.example.red_panda.ui.model.EventMock
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +23,13 @@ class EventDetailViewModel(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = null
+        )
+
+    val allAlbums: StateFlow<List<Album>> = repository.getAlbums()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
         )
     private val _coverFallbackEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val coverFallbackEvents = _coverFallbackEvents.asSharedFlow()
@@ -50,6 +58,13 @@ class EventDetailViewModel(
         viewModelScope.launch {
             repository.deleteEvent(eventId)
             onDeleted()
+        }
+    }
+
+    fun moveEvent(targetCategoryId: Long, onMoved: () -> Unit) {
+        viewModelScope.launch {
+            repository.moveEvent(eventId, targetCategoryId)
+            onMoved()
         }
     }
 }
